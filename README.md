@@ -1,4 +1,4 @@
-# Standalone Reseller Telegram Bot (Golang)
+# Standalone Reseller Telegram Bot
 
 This is a self-hosted, standalone Telegram bot for resellers, built in Go. It integrates with the core backend API using Reseller API endpoints (`Authorization: Bearer rn_...`).
 
