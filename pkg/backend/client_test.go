@@ -41,7 +41,7 @@ func TestRegisterUser(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient(server.URL, "rn_test_key")
+	client := NewClient(server.URL, "rn_test_key", nil, false)
 	resp, err := client.RegisterUser(context.Background(), &UserRegisterRequest{
 		TelegramID:   123456,
 		FirstName:    "Ali",
@@ -92,7 +92,7 @@ func TestUpdateUserBalance(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient(server.URL, "rn_test_key")
+	client := NewClient(server.URL, "rn_test_key", nil, false)
 	err := client.UpdateUserBalance(context.Background(), &BalanceUpdateRequest{
 		UserID: 482,
 		Amount: 50000,

@@ -6,10 +6,12 @@ import (
 )
 
 type Config struct {
-	BotToken       string  `yaml:"bot_token"`
-	BackendURL     string  `yaml:"backend_url"`
-	ResellerAPIKey string  `yaml:"reseller_api_key"`
-	AdminChatIDs   []int64 `yaml:"admin_chat_ids"`
+	BotToken           string            `yaml:"bot_token"`
+	BackendURL         string            `yaml:"backend_url"`
+	ResellerAPIKey     string            `yaml:"reseller_api_key"`
+	AdminChatIDs       []int64           `yaml:"admin_chat_ids"`
+	HostMappings       map[string]string `yaml:"host_mappings"`
+	InsecureSkipVerify bool              `yaml:"insecure_skip_verify"`
 }
 
 func Load(path string) (*Config, error) {
