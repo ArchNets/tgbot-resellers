@@ -37,7 +37,7 @@ func TestRegisterUser(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"user_id": 482, "balance": 50000, "lang": "fa", "created_new": true}`))
+		w.Write([]byte(`{"code": 200, "msg": "success", "data": {"user_id": 482, "balance": 50000, "lang": "fa", "created_new": true}}`))
 	}))
 	defer server.Close()
 
@@ -86,7 +86,9 @@ func TestUpdateUserBalance(t *testing.T) {
 			t.Errorf("Unexpected request data: %+v", req)
 		}
 
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"code": 200, "msg": "success"}`))
 	}))
 	defer server.Close()
 

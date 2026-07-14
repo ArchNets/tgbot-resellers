@@ -18,6 +18,7 @@ const (
 	StateAdminAwaitingPlanDescription UserState = "admin_awaiting_plan_desc"
 	StateAdminAwaitingWelcomeText     UserState = "admin_awaiting_welcome_text"
 	StateAdminAwaitingWelcomeImage    UserState = "admin_awaiting_welcome_image"
+	StateAdminAwaitingTagDisplayName  UserState = "admin_awaiting_tag_display_name"
 )
 
 type Session struct {

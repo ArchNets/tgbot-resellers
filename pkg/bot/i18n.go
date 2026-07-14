@@ -108,6 +108,7 @@ const (
 	BtnAdminPanel        = "⚙️ پنل مدیریت"
 	BtnAdminCardSettings = "💳 تنظیمات کارت بانکی"
 	BtnAdminPlansSettings = "📦 مدیریت پلان‌ها"
+	BtnAdminTagSettings   = "🏷️ مدیریت نام دسته‌ها"
 
 	// Admin Messages
 	MsgAdminPanelWelcome = `⚙️ *به پنل مدیریت ربات خوش آمدید.*

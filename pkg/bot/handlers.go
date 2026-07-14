@@ -130,11 +130,28 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 		b.api.Send(reply)
 
 	case BtnBuyService:
-		plans, err := b.db.GetPlans()
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		apiResp, err := b.client.GetResellerSubscribeList(ctx, 1, 100)
 		if err != nil {
-			log.Printf("Failed to get plans from DB: %v", err)
+			log.Printf("Failed to get plans from backend: %v", err)
 			b.sendSimpleMessage(chatID, MsgGeneralError)
 			return
+		}
+
+		// Filter plans where Show is true
+		tagMap := make(map[string]bool)
+		var plans []backend.ResellerSubscribePlan
+		for _, p := range apiResp.List {
+			if p.Show {
+				plans = append(plans, p)
+				for _, t := range p.NodeTags {
+					tag := strings.TrimSpace(t)
+					if tag != "" {
+						tagMap[tag] = true
+					}
+				}
+			}
 		}
 
 		if len(plans) == 0 {
@@ -142,6 +159,33 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 			return
 		}
 
+		var uniqueTags []string
+		for tag := range tagMap {
+			uniqueTags = append(uniqueTags, tag)
+		}
+
+		// Look up displaying names from local Sqlite DB
+		var tagItems []TagItem
+		for _, tag := range uniqueTags {
+			disp, err := b.db.GetTagMapping(tag)
+			if err != nil || disp == "" {
+				disp = tag
+			}
+			tagItems = append(tagItems, TagItem{
+				Original: tag,
+				Display:  disp,
+			})
+		}
+
+		// If multiple unique tags exist, present category menu first
+		if len(tagItems) > 1 {
+			reply := tgbotapi.NewMessage(chatID, "🏷️ لطفاً دسته مورد نظر خود را انتخاب کنید:")
+			reply.ReplyMarkup = TagsInlineKeyboard(tagItems)
+			b.api.Send(reply)
+			return
+		}
+
+		// Default: Show all plans
 		reply := tgbotapi.NewMessage(chatID, MsgPlansList)
 		reply.ReplyMarkup = PlansInlineKeyboard(plans)
 		b.api.Send(reply)
@@ -240,7 +284,9 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 		if !isAdmin {
 			return
 		}
-		plans, err := b.db.GetPlans()
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		apiResp, err := b.client.GetResellerSubscribeList(ctx, 1, 100)
 		if err != nil {
 			log.Printf("Failed to get plans for admin: %v", err)
 			b.sendSimpleMessage(chatID, MsgGeneralError)
@@ -248,7 +294,59 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 		}
 		reply := tgbotapi.NewMessage(chatID, MsgAdminPlansList)
 		reply.ParseMode = tgbotapi.ModeMarkdown
-		reply.ReplyMarkup = AdminPlansInlineKeyboard(plans)
+		reply.ReplyMarkup = AdminPlansInlineKeyboard(apiResp.List)
+		b.api.Send(reply)
+
+	case BtnAdminTagSettings:
+		if !isAdmin {
+			return
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		apiResp, err := b.client.GetResellerSubscribeList(ctx, 1, 100)
+		if err != nil {
+			log.Printf("Failed to get plans for admin tags: %v", err)
+			b.sendSimpleMessage(chatID, MsgGeneralError)
+			return
+		}
+
+		tagMap := make(map[string]bool)
+		for _, p := range apiResp.List {
+			if p.Show {
+				for _, t := range p.NodeTags {
+					tag := strings.TrimSpace(t)
+					if tag != "" {
+						tagMap[tag] = true
+					}
+				}
+			}
+		}
+
+		var uniqueTags []string
+		for tag := range tagMap {
+			uniqueTags = append(uniqueTags, tag)
+		}
+
+		var tagItems []TagItem
+		for _, tag := range uniqueTags {
+			disp, err := b.db.GetTagMapping(tag)
+			if err != nil || disp == "" {
+				disp = tag
+			}
+			tagItems = append(tagItems, TagItem{
+				Original: tag,
+				Display:  disp,
+			})
+		}
+
+		if len(tagItems) == 0 {
+			b.sendSimpleMessage(chatID, "⚠️ هیچ دسته‌ای از پنل اصلی یافت نشد.")
+			return
+		}
+
+		reply := tgbotapi.NewMessage(chatID, "🏷️ *مدیریت نام نمایشی دسته‌ها:* \n\nبرای تغییر نام نمایشی هر دسته روی آن کلیک کنید:")
+		reply.ParseMode = tgbotapi.ModeMarkdown
+		reply.ReplyMarkup = AdminTagsInlineKeyboard(tagItems)
 		b.api.Send(reply)
 
 	case BtnAdminWelcomeSettings:
@@ -482,16 +580,24 @@ func (b *Bot) handleStateMessage(msg *tgbotapi.Message, u *db.User, sess *Sessio
 			return
 		}
 
-		plan := &db.Plan{
-			SubscribeID: sess.TempPlanSubscribeID,
-			Name:        sess.TempPlanName,
-			Price:       sess.TempPlanPrice,
-			Description: desc,
+		req := &backend.CreateResellerSubscribeRequest{
+			Name:                   sess.TempPlanName,
+			UnitPrice:              sess.TempPlanPrice,
+			Description:            desc,
+			ResellerSubscriptionID: int64(sess.TempPlanSubscribeID),
+			UnitTime:               "month",
+			Traffic:                10 * 1024 * 1024 * 1024, // 10GB default
+			DeviceLimit:            1,
+			Show:                   true,
+			Sell:                   true,
 		}
 
-		_, err := b.db.SavePlan(plan)
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+
+		err := b.client.CreateResellerSubscribe(ctx, req)
 		if err != nil {
-			log.Printf("Failed to save new plan: %v", err)
+			log.Printf("Failed to save new plan to backend: %v", err)
 			b.sendSimpleMessage(chatID, MsgGeneralError)
 		} else {
 			b.sendSimpleMessage(chatID, MsgAdminPlanAdded)
@@ -500,10 +606,12 @@ func (b *Bot) handleStateMessage(msg *tgbotapi.Message, u *db.User, sess *Sessio
 		b.session.Clear(chatID)
 
 		// List updated plans
-		plans, _ := b.db.GetPlans()
+		apiResp, _ := b.client.GetResellerSubscribeList(ctx, 1, 100)
 		reply := tgbotapi.NewMessage(chatID, MsgAdminPlansList)
 		reply.ParseMode = tgbotapi.ModeMarkdown
-		reply.ReplyMarkup = AdminPlansInlineKeyboard(plans)
+		if apiResp != nil {
+			reply.ReplyMarkup = AdminPlansInlineKeyboard(apiResp.List)
+		}
 		b.api.Send(reply)
 
 	case StateAdminAwaitingWelcomeText:
@@ -540,6 +648,30 @@ func (b *Bot) handleStateMessage(msg *tgbotapi.Message, u *db.User, sess *Sessio
 		b.session.Clear(chatID)
 		reply := tgbotapi.NewMessage(chatID, MsgAdminWelcomeImgUpdated)
 		reply.ReplyMarkup = AdminWelcomeSettingsKeyboard()
+		b.api.Send(reply)
+
+	case StateAdminAwaitingTagDisplayName:
+		if !isAdmin {
+			b.session.Clear(chatID)
+			return
+		}
+		newName := strings.TrimSpace(msg.Text)
+		if newName == "" {
+			b.sendSimpleMessage(chatID, "⚠️ نام نمایشی دسته نمی‌تواند خالی باشد. مجدداً وارد کنید:")
+			return
+		}
+
+		err := b.db.SetTagMapping(sess.TempPlanName, newName) // TempPlanName stores original tag name
+		if err != nil {
+			log.Printf("Failed to save tag mapping: %v", err)
+			b.sendSimpleMessage(chatID, MsgGeneralError)
+		} else {
+			b.sendSimpleMessage(chatID, "✅ نام نمایشی با موفقیت ذخیره شد.")
+		}
+
+		b.session.Clear(chatID)
+		reply := tgbotapi.NewMessage(chatID, MsgAdminPanelWelcome)
+		reply.ReplyMarkup = AdminMenuKeyboard()
 		b.api.Send(reply)
 	}
 }

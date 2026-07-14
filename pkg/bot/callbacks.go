@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -35,27 +36,88 @@ func (b *Bot) handleCallbackQuery(cb *tgbotapi.CallbackQuery) {
 		return
 	}
 
-	// 1. Handle Plan Selection and Purchase flows
+	// 1. Select Tag/Category Flow
+	if strings.HasPrefix(data, "select_tag_") {
+		tag := strings.TrimPrefix(data, "select_tag_")
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		apiResp, err := b.client.GetResellerSubscribeList(ctx, 1, 100)
+		if err != nil {
+			b.answerCallback(cb.ID, MsgGeneralError, true)
+			return
+		}
+
+		var plans []backend.ResellerSubscribePlan
+		for _, p := range apiResp.List {
+			if p.Show {
+				hasTag := false
+				for _, t := range p.NodeTags {
+					if strings.TrimSpace(t) == tag {
+						hasTag = true
+						break
+					}
+				}
+				if hasTag {
+					plans = append(plans, p)
+				}
+			}
+		}
+
+		// Sort by Traffic ascending, then DeviceLimit
+		sort.Slice(plans, func(i, j int) bool {
+			if plans[i].Traffic != plans[j].Traffic {
+				return plans[i].Traffic < plans[j].Traffic
+			}
+			return plans[i].DeviceLimit < plans[j].DeviceLimit
+		})
+
+		disp, err := b.db.GetTagMapping(tag)
+		if err != nil || disp == "" {
+			disp = tag
+		}
+
+		b.answerCallback(cb.ID, "", false)
+		editMsg := tgbotapi.NewEditMessageText(chatID, cb.Message.MessageID, fmt.Sprintf("🛒 *پلان‌های بخش %s:*", disp))
+		editMsg.ParseMode = tgbotapi.ModeMarkdown
+		markup := PlansInlineKeyboard(plans)
+		editMsg.ReplyMarkup = &markup
+		b.api.Send(editMsg)
+		return
+	}
+
+	// 2. Handle Plan Selection and Purchase flows
 	if strings.HasPrefix(data, "plan_detail_") {
-		idxStr := strings.TrimPrefix(data, "plan_detail_")
-		idx, err := strconv.Atoi(idxStr)
+		idStr := strings.TrimPrefix(data, "plan_detail_")
+		planID, err := strconv.ParseInt(idStr, 10, 64)
 		if err != nil {
 			b.answerCallback(cb.ID, "پلان نامعتبر است.", true)
 			return
 		}
 
-		plans, err := b.db.GetPlans()
-		if err != nil || idx < 0 || idx >= len(plans) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		apiResp, err := b.client.GetResellerSubscribeList(ctx, 1, 100)
+		if err != nil {
+			b.answerCallback(cb.ID, MsgGeneralError, true)
+			return
+		}
+
+		var plan *backend.ResellerSubscribePlan
+		for i, p := range apiResp.List {
+			if p.ID == planID {
+				plan = &apiResp.List[i]
+				break
+			}
+		}
+
+		if plan == nil {
 			b.answerCallback(cb.ID, "پلان نامعتبر است یا یافت نشد.", true)
 			return
 		}
 
-		plan := plans[idx]
-
 		// Fetch current balance from backend
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
 		resp, err := b.client.RegisterUser(ctx, &backend.UserRegisterRequest{
 			TelegramID: chatID,
 		})
@@ -69,14 +131,14 @@ func (b *Bot) handleCallbackQuery(cb *tgbotapi.CallbackQuery) {
 
 		text := fmt.Sprintf(MsgPlanDetail,
 			plan.Name,
-			FormatMoney(plan.Price),
+			FormatMoney(plan.UnitPrice),
 			plan.Description,
 			FormatMoney(resp.Balance),
 		)
 
 		editMsg := tgbotapi.NewEditMessageText(chatID, cb.Message.MessageID, text)
 		editMsg.ParseMode = tgbotapi.ModeMarkdown
-		markup := PurchaseConfirmKeyboard(idx)
+		markup := PurchaseConfirmKeyboard(plan.ID)
 		editMsg.ReplyMarkup = &markup
 		b.api.Send(editMsg)
 		return
@@ -90,20 +152,34 @@ func (b *Bot) handleCallbackQuery(cb *tgbotapi.CallbackQuery) {
 	}
 
 	if strings.HasPrefix(data, "plan_buy_") {
-		idxStr := strings.TrimPrefix(data, "plan_buy_")
-		idx, err := strconv.Atoi(idxStr)
+		idStr := strings.TrimPrefix(data, "plan_buy_")
+		planID, err := strconv.ParseInt(idStr, 10, 64)
 		if err != nil {
 			b.answerCallback(cb.ID, "پلان نامعتبر است.", true)
 			return
 		}
 
-		plans, err := b.db.GetPlans()
-		if err != nil || idx < 0 || idx >= len(plans) {
-			b.answerCallback(cb.ID, "پلان یافت نشد.", true)
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+
+		apiResp, err := b.client.GetResellerSubscribeList(ctx, 1, 100)
+		if err != nil {
+			b.answerCallback(cb.ID, MsgGeneralError, true)
 			return
 		}
 
-		plan := plans[idx]
+		var plan *backend.ResellerSubscribePlan
+		for i, p := range apiResp.List {
+			if p.ID == planID {
+				plan = &apiResp.List[i]
+				break
+			}
+		}
+
+		if plan == nil {
+			b.answerCallback(cb.ID, "پلان یافت نشد.", true)
+			return
+		}
 
 		if u == nil {
 			b.answerCallback(cb.ID, "کاربر یافت نشد.", true)
@@ -111,9 +187,6 @@ func (b *Bot) handleCallbackQuery(cb *tgbotapi.CallbackQuery) {
 		}
 
 		// Retrieve latest balance
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-
 		profile, err := b.client.RegisterUser(ctx, &backend.UserRegisterRequest{
 			TelegramID: chatID,
 		})
@@ -123,9 +196,9 @@ func (b *Bot) handleCallbackQuery(cb *tgbotapi.CallbackQuery) {
 			return
 		}
 
-		if profile.Balance < plan.Price {
+		if profile.Balance < plan.UnitPrice {
 			b.answerCallback(cb.ID, "موجودی کافی نیست.", true)
-			text := fmt.Sprintf(MsgInsufficientBalance, FormatMoney(profile.Balance), FormatMoney(plan.Price))
+			text := fmt.Sprintf(MsgInsufficientBalance, FormatMoney(profile.Balance), FormatMoney(plan.UnitPrice))
 			editMsg := tgbotapi.NewEditMessageText(chatID, cb.Message.MessageID, text)
 			editMsg.ParseMode = tgbotapi.ModeMarkdown
 			b.api.Send(editMsg)
@@ -135,7 +208,7 @@ func (b *Bot) handleCallbackQuery(cb *tgbotapi.CallbackQuery) {
 		// Deduct user wallet balance first
 		err = b.client.UpdateUserBalance(ctx, &backend.BalanceUpdateRequest{
 			UserID: u.UserID,
-			Amount: -plan.Price,
+			Amount: -plan.UnitPrice,
 			Reason: fmt.Sprintf("خرید پلان: %s", plan.Name),
 		})
 		if err != nil {
@@ -147,14 +220,14 @@ func (b *Bot) handleCallbackQuery(cb *tgbotapi.CallbackQuery) {
 		// Call backend to provision subscription
 		subResp, err := b.client.CreateSubscription(ctx, &backend.SubscribeRequest{
 			UserID:      u.UserID,
-			SubscribeID: plan.SubscribeID,
+			SubscribeID: int(plan.ID),
 		})
 		if err != nil {
 			log.Printf("Backend subscription creation failed: %v", err)
 			// Refund user balance
 			_ = b.client.UpdateUserBalance(ctx, &backend.BalanceUpdateRequest{
 				UserID: u.UserID,
-				Amount: plan.Price,
+				Amount: plan.UnitPrice,
 				Reason: fmt.Sprintf("استرداد خرید ناموفق: %s", plan.Name),
 			})
 			b.answerCallback(cb.ID, "خطا در فعال‌سازی سرویس. موجودی شما بازگردانده شد.", true)
@@ -360,19 +433,42 @@ func (b *Bot) handleCallbackQuery(cb *tgbotapi.CallbackQuery) {
 			return
 		}
 
-		if err := b.db.DeletePlan(id); err != nil {
-			log.Printf("Failed to delete plan %d: %v", id, err)
-			b.answerCallback(cb.ID, "خطا در حذف پلان.", true)
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+
+		err = b.client.DeleteResellerSubscribe(ctx, &backend.DeleteResellerSubscribeRequest{ID: id})
+		if err != nil {
+			log.Printf("Failed to delete plan %d from backend: %v", id, err)
+			b.answerCallback(cb.ID, "خطا در حذف پلان از سرور.", true)
 			return
 		}
 
 		b.answerCallback(cb.ID, MsgAdminPlanDeleted, false)
 
 		// Reload plans list
-		plans, _ := b.db.GetPlans()
-		markup := AdminPlansInlineKeyboard(plans)
-		editMsg := tgbotapi.NewEditMessageReplyMarkup(chatID, cb.Message.MessageID, markup)
-		b.api.Send(editMsg)
+		apiResp, _ := b.client.GetResellerSubscribeList(ctx, 1, 100)
+		if apiResp != nil {
+			markup := AdminPlansInlineKeyboard(apiResp.List)
+			editMsg := tgbotapi.NewEditMessageReplyMarkup(chatID, cb.Message.MessageID, markup)
+			b.api.Send(editMsg)
+		}
+		return
+	}
+
+	if strings.HasPrefix(data, "admin_tag_edit_") {
+		if !isAdmin {
+			b.answerCallback(cb.ID, "شما دسترسی به این بخش را ندارید.", true)
+			return
+		}
+		b.answerCallback(cb.ID, "", false)
+		tag := strings.TrimPrefix(data, "admin_tag_edit_")
+
+		reply := tgbotapi.NewMessage(chatID, fmt.Sprintf("✏️ لطفاً نام نمایشی جدید برای دسته '%s' را ارسال کنید:", tag))
+		reply.ReplyMarkup = BackKeyboard()
+		b.api.Send(reply)
+
+		b.session.SetState(chatID, StateAdminAwaitingTagDisplayName)
+		b.session.SetTempPlanName(chatID, tag) // TempPlanName stores original tag name
 		return
 	}
 }

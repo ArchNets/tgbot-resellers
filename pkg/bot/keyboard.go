@@ -2,7 +2,7 @@ package bot
 
 import (
 	"fmt"
-	"reseller-bot/pkg/db"
+	"reseller-bot/pkg/backend"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -39,6 +39,7 @@ func AdminMenuKeyboard() tgbotapi.ReplyKeyboardMarkup {
 		),
 		tgbotapi.NewKeyboardButtonRow(
 			tgbotapi.NewKeyboardButton(BtnAdminWelcomeSettings),
+			tgbotapi.NewKeyboardButton(BtnAdminTagSettings),
 		),
 		tgbotapi.NewKeyboardButtonRow(
 			tgbotapi.NewKeyboardButton(BtnBack),
@@ -69,12 +70,12 @@ func BackKeyboard() tgbotapi.ReplyKeyboardMarkup {
 	)
 }
 
-func PlansInlineKeyboard(plans []db.Plan) tgbotapi.InlineKeyboardMarkup {
+func PlansInlineKeyboard(plans []backend.ResellerSubscribePlan) tgbotapi.InlineKeyboardMarkup {
 	var rows [][]tgbotapi.InlineKeyboardButton
-	for i, plan := range plans {
+	for _, plan := range plans {
 		btn := tgbotapi.NewInlineKeyboardButtonData(
-			fmt.Sprintf("%s - %s تومان", plan.Name, FormatMoney(plan.Price)),
-			fmt.Sprintf("plan_detail_%d", i),
+			fmt.Sprintf("%s - %s تومان", plan.Name, FormatMoney(plan.UnitPrice)),
+			fmt.Sprintf("plan_detail_%d", plan.ID),
 		)
 		rows = append(rows, tgbotapi.NewInlineKeyboardRow(btn))
 	}
@@ -83,13 +84,32 @@ func PlansInlineKeyboard(plans []db.Plan) tgbotapi.InlineKeyboardMarkup {
 	}
 }
 
-func PurchaseConfirmKeyboard(planIndex int) tgbotapi.InlineKeyboardMarkup {
+func PurchaseConfirmKeyboard(planID int64) tgbotapi.InlineKeyboardMarkup {
 	return tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("✅ بله، خرید", fmt.Sprintf("plan_buy_%d", planIndex)),
+			tgbotapi.NewInlineKeyboardButtonData("✅ بله، خرید", fmt.Sprintf("plan_buy_%d", planID)),
 			tgbotapi.NewInlineKeyboardButtonData("❌ انصراف", "plan_cancel"),
 		),
 	)
+}
+
+type TagItem struct {
+	Original string
+	Display  string
+}
+
+func TagsInlineKeyboard(tags []TagItem) tgbotapi.InlineKeyboardMarkup {
+	var rows [][]tgbotapi.InlineKeyboardButton
+	for _, tag := range tags {
+		btn := tgbotapi.NewInlineKeyboardButtonData(
+			tag.Display,
+			fmt.Sprintf("select_tag_%s", tag.Original),
+		)
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(btn))
+	}
+	return tgbotapi.InlineKeyboardMarkup{
+		InlineKeyboard: rows,
+	}
 }
 
 func AdminApprovalKeyboard(rechargeRequestID int64) tgbotapi.InlineKeyboardMarkup {
@@ -101,12 +121,12 @@ func AdminApprovalKeyboard(rechargeRequestID int64) tgbotapi.InlineKeyboardMarku
 	)
 }
 
-func AdminPlansInlineKeyboard(plans []db.Plan) tgbotapi.InlineKeyboardMarkup {
+func AdminPlansInlineKeyboard(plans []backend.ResellerSubscribePlan) tgbotapi.InlineKeyboardMarkup {
 	var rows [][]tgbotapi.InlineKeyboardButton
 	for _, plan := range plans {
 		// Show plan name and price as a status button
 		labelBtn := tgbotapi.NewInlineKeyboardButtonData(
-			fmt.Sprintf("%s (%s تومان)", plan.Name, FormatMoney(plan.Price)),
+			fmt.Sprintf("%s (%s تومان)", plan.Name, FormatMoney(plan.UnitPrice)),
 			"admin_plan_noop",
 		)
 		// Delete button next to it
@@ -135,4 +155,18 @@ func SubscriptionConfigsKeyboard(subID int64) tgbotapi.InlineKeyboardMarkup {
 			tgbotapi.NewInlineKeyboardButtonData("🔑 مشاهده کانفیگ‌ها", fmt.Sprintf("sub_configs_%d", subID)),
 		),
 	)
+}
+
+func AdminTagsInlineKeyboard(tags []TagItem) tgbotapi.InlineKeyboardMarkup {
+	var rows [][]tgbotapi.InlineKeyboardButton
+	for _, tag := range tags {
+		btn := tgbotapi.NewInlineKeyboardButtonData(
+			fmt.Sprintf("✏️ %s ➔ %s", tag.Original, tag.Display),
+			fmt.Sprintf("admin_tag_edit_%s", tag.Original),
+		)
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(btn))
+	}
+	return tgbotapi.InlineKeyboardMarkup{
+		InlineKeyboard: rows,
+	}
 }

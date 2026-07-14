@@ -104,6 +104,16 @@ func (db *DB) initSchema() error {
 		return fmt.Errorf("failed to create plans table: %w", err)
 	}
 
+	tagMappingsTable := `
+	CREATE TABLE IF NOT EXISTS tag_mappings (
+		original_tag TEXT PRIMARY KEY,
+		display_tag TEXT NOT NULL
+	);`
+
+	if _, err := db.conn.Exec(tagMappingsTable); err != nil {
+		return fmt.Errorf("failed to create tag_mappings table: %w", err)
+	}
+
 	return nil
 }
 
@@ -223,4 +233,43 @@ func (db *DB) SavePlan(p *Plan) (int64, error) {
 func (db *DB) DeletePlan(id int64) error {
 	_, err := db.conn.Exec("DELETE FROM plans WHERE id = ?", id)
 	return err
+}
+
+// Tag Display Mappings
+func (db *DB) GetTagMapping(original string) (string, error) {
+	row := db.conn.QueryRow("SELECT display_tag FROM tag_mappings WHERE original_tag = ?", original)
+	var display string
+	if err := row.Scan(&display); err != nil {
+		if err == sql.ErrNoRows {
+			return original, nil // Default to original if no mapping exists
+		}
+		return "", err
+	}
+	return display, nil
+}
+
+func (db *DB) SetTagMapping(original, display string) error {
+	_, err := db.conn.Exec(`
+		INSERT INTO tag_mappings (original_tag, display_tag) VALUES (?, ?)
+		ON CONFLICT(original_tag) DO UPDATE SET display_tag = excluded.display_tag;`,
+		original, display)
+	return err
+}
+
+func (db *DB) GetAllTagMappings() (map[string]string, error) {
+	rows, err := db.conn.Query("SELECT original_tag, display_tag FROM tag_mappings")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	mappings := make(map[string]string)
+	for rows.Next() {
+		var orig, disp string
+		if err := rows.Scan(&orig, &disp); err != nil {
+			return nil, err
+		}
+		mappings[orig] = disp
+	}
+	return mappings, nil
 }

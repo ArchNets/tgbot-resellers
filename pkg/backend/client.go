@@ -50,6 +50,12 @@ func (c *Client) newRequest(ctx context.Context, method, path string, body inter
 	return req, nil
 }
 
+type APIResponse struct {
+	Code int             `json:"code"`
+	Msg  string          `json:"msg"`
+	Data json.RawMessage `json:"data"`
+}
+
 func (c *Client) do(req *http.Request, v interface{}) error {
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -62,9 +68,18 @@ func (c *Client) do(req *http.Request, v interface{}) error {
 		return fmt.Errorf("backend returned error status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
-	if v != nil {
-		if err := json.NewDecoder(resp.Body).Decode(v); err != nil {
-			return fmt.Errorf("failed to decode response: %w", err)
+	var apiResp APIResponse
+	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
+		return fmt.Errorf("failed to decode response envelope: %w", err)
+	}
+
+	if apiResp.Code != 200 {
+		return fmt.Errorf("backend returned business logic error code %d: %s", apiResp.Code, apiResp.Msg)
+	}
+
+	if v != nil && len(apiResp.Data) > 0 {
+		if err := json.Unmarshal(apiResp.Data, v); err != nil {
+			return fmt.Errorf("failed to decode response data: %w", err)
 		}
 	}
 
