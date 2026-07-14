@@ -58,20 +58,13 @@ Create a `config.yaml` file in the root directory:
 
 ```yaml
 bot_token: "YOUR_TELEGRAM_BOT_TOKEN"
-backend_url: "https://your-core-backend.com" # Core backend url
-reseller_api_key: "rn_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" # Reseller private API Key
+backend_url: "https://your-core-backend.com"
+reseller_api_key: "rn_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 admin_chat_ids:
-  - 123456789 # Telegram ID of managers who approve receipts
-card_number: "6037-9911-2233-4455" # Card details for wallet topup
-card_owner: "مدیریت سیستم"
-
-plans:
-  - id: 1
-    subscribe_id: 12
-    name: "🚀 پلان برنزی - ۵۰ گیگابایت"
-    price: 150000 # Price in Tomans
-    description: "حجم ۵۰ گیگابایت - اعتبار ۱ ماه"
+  - 123456789 # Telegram ID of managers who approve receipts and access the admin panel
 ```
+
+All other settings (bank card number, holder name, subscription plans, greeting/welcome message text, and welcome header image) are stored dynamically in the SQLite database and can be edited inside the Telegram bot using the **`/admin`** command or clicking the **`⚙️ پنل مدیریت`** button.
 
 ---
 
@@ -86,15 +79,27 @@ plans:
     ```bash
     go mod tidy
     ```
-3.  Copy and customize configuration:
-    ```bash
-    cp config.yaml.template config.yaml
-    ```
+3.  Configure `config.yaml` based on `config.yaml.template`.
 4.  Run unit tests:
     ```bash
     go test -v ./...
     ```
-5.  Start the bot:
+5.  Start the bot locally:
     ```bash
     go run cmd/bot/main.go
     ```
+
+---
+
+## Release Workflows (GitHub Actions)
+
+This repository includes a CI/CD action at `.github/workflows/release.yml` which builds and bundles cross-platform binaries. To release a new version (e.g. `v0.0.1` -> `v0.0.2`):
+
+1. Commit all your changes locally.
+2. Create and push a tag:
+   ```bash
+   git tag v0.0.2
+   git push origin v0.0.2
+   ```
+GitHub Actions will automatically build the assets and create a Release note populated with all commit differences between the tags.
+
