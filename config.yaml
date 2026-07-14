@@ -1,0 +1,7 @@
+# Reseller Telegram Bot Configuration
+
+bot_token: "8965734754:AAFTeoyLZsL1XRT3RbEd2686xg4-mOABPqs"
+backend_url: "https://panel.archnets.com" # URL of the Core Backend Server
+reseller_api_key: "rn_818836a57e2409fd8164dbc8ec0df4b4a5dc06005d08891d7344706ab22bd415"
+admin_chat_ids:
+  - 8872525059 # Replace with actual admin Telegram chat IDs
