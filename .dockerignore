@@ -1,0 +1,12 @@
+.git
+.github
+.gitignore
+.dockerignore
+README.md
+config.yaml
+config.yaml.template
+bot.db
+bot.db-journal
+*.db
+*.log
+tmp/

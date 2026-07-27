@@ -34,7 +34,7 @@ This is a self-hosted, standalone Telegram bot for resellers, built in Go. It in
 │       └── main.go           # Application entry point & graceful shutdown
 ├── pkg/
 │   ├── config/
-│   │   └── config.go         # Parses yaml application configurations
+│   │   └── config.go         # Parses application configurations and env vars
 │   ├── backend/
 │   │   ├── client.go         # HTTP Reseller API Client
 │   │   └── types.go          # Mapped API request/response structures
@@ -47,12 +47,18 @@ This is a self-hosted, standalone Telegram bot for resellers, built in Go. It in
 │   │   ├── handlers.go       # Text messages and state actions
 │   │   ├── callbacks.go      # Inline button actions (approval/rejection/plans)
 │   │   └── i18n.go           # String dict mapping in Persian
+├── Dockerfile                # Multi-stage Docker build
+├── .dockerignore             # Docker context filters
 └── config.yaml.template      # Settings templates
 ```
 
 ---
 
-## Configuration (`config.yaml`)
+## Configuration (`config.yaml` or Environment Variables)
+
+You can configure the bot via `config.yaml` or via Environment Variables.
+
+### `config.yaml`
 
 Create a `config.yaml` file in the root directory:
 
@@ -68,7 +74,42 @@ All other settings (bank card number, holder name, subscription plans, greeting/
 
 ---
 
-## Building and Running
+## Docker Deployment
+
+The bot can be containerized and executed with environment variable configuration without requiring a `config.yaml` file mounted.
+
+### Environment Variables
+
+| Variable | Type | Description | Required (if no `config.yaml`) |
+| :--- | :--- | :--- | :--- |
+| `BOT_TOKEN` | String | Telegram Bot Token obtained from `@BotFather` | Yes |
+| `BACKEND_URL` | String | Base URL of the core reseller API backend | Yes |
+| `RESELLER_API_KEY` | String | Reseller API authentication key (`rn_...`) | Yes |
+| `BOT_ID` | Integer (`int64`) | Numerical identifier of the bot instance | Yes |
+
+*Note: Any environment variable set will override the corresponding value in `config.yaml`.*
+
+### Docker Build & Run Example
+
+1. **Build Docker Image**:
+   ```bash
+   docker build -t ebadidev/tgbot-resellers:latest .
+   ```
+
+2. **Run Container (Zero Mounted Files)**:
+   ```bash
+   docker run -d \
+     --name tgbot-reseller \
+     -e BOT_TOKEN="123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ" \
+     -e BACKEND_URL="https://panel.example.com" \
+     -e RESELLER_API_KEY="rn_0123456789abcdef0123456789abcdef" \
+     -e BOT_ID=1001 \
+     ebadidev/tgbot-resellers:latest
+   ```
+
+---
+
+## Building and Running Locally
 
 ### Prerequisites
 *   Go 1.20 or newer
@@ -79,7 +120,7 @@ All other settings (bank card number, holder name, subscription plans, greeting/
     ```bash
     go mod tidy
     ```
-3.  Configure `config.yaml` based on `config.yaml.template`.
+3.  Configure `config.yaml` based on `config.yaml.template` (or set environment variables).
 4.  Run unit tests:
     ```bash
     go test -v ./...
@@ -93,13 +134,5 @@ All other settings (bank card number, holder name, subscription plans, greeting/
 
 ## Release Workflows (GitHub Actions)
 
-This repository includes a CI/CD action at `.github/workflows/release.yml` which builds and bundles cross-platform binaries. To release a new version (e.g. `v0.0.1` -> `v0.0.2`):
-
-1. Commit all your changes locally.
-2. Create and push a tag:
-   ```bash
-   git tag v0.0.2
-   git push origin v0.0.2
-   ```
-GitHub Actions will automatically build the assets and create a Release note populated with all commit differences between the tags.
-
+* **Binary Releases** (`.github/workflows/release.yml`): Triggers on tag `v*` to build cross-platform binaries.
+* **Docker Publish** (`.github/workflows/docker-publish.yml`): Triggers on tag `v*` to build and push `ebadidev/tgbot-resellers:<git tag>` to Docker Hub using `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` secrets.

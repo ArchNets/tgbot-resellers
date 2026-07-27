@@ -26,6 +26,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
+	cfg.LogSummary()
 
 	// Initialize Database
 	database, err := db.NewDB(*dbPath)
