@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -39,6 +40,11 @@ type Client struct {
 }
 
 func NewClient(baseURL, apiKey string, hostMappings map[string]string, insecureSkipVerify bool) *Client {
+	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if baseURL != "" && !strings.HasPrefix(baseURL, "http://") && !strings.HasPrefix(baseURL, "https://") {
+		baseURL = "https://" + baseURL
+	}
+
 	dialer := &net.Dialer{
 		Timeout:   10 * time.Second,
 		KeepAlive: 30 * time.Second,

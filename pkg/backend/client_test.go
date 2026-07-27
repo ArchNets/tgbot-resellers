@@ -8,6 +8,26 @@ import (
 	"testing"
 )
 
+func TestNewClientBaseURLNormalization(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"panel.archnets.com", "https://panel.archnets.com"},
+		{"panel.archnets.com/", "https://panel.archnets.com"},
+		{"http://panel.archnets.com", "http://panel.archnets.com"},
+		{"https://panel.archnets.com/", "https://panel.archnets.com"},
+		{"  panel.archnets.com/  ", "https://panel.archnets.com"},
+	}
+
+	for _, tt := range tests {
+		client := NewClient(tt.input, "key", nil, false)
+		if client.baseURL != tt.expected {
+			t.Errorf("For input %q, expected baseURL %q, got %q", tt.input, tt.expected, client.baseURL)
+		}
+	}
+}
+
 func TestRegisterUser(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Verify authorization header
