@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"time"
 
 	_ "modernc.org/sqlite"
 )
@@ -29,6 +30,12 @@ type Plan struct {
 	Name        string
 	Price       int64
 	Description string
+}
+
+type Staff struct {
+	TelegramID  int64
+	DisplayName string
+	AddedAt     int64
 }
 
 type DB struct {
@@ -114,6 +121,37 @@ func (db *DB) initSchema() error {
 		return fmt.Errorf("failed to create tag_mappings table: %w", err)
 	}
 
+	staffTable := `
+	CREATE TABLE IF NOT EXISTS bot_staff (
+		telegram_id INTEGER PRIMARY KEY,
+		display_name TEXT NOT NULL,
+		added_at INTEGER NOT NULL
+	);`
+	if _, err := db.conn.Exec(staffTable); err != nil {
+		return fmt.Errorf("failed to create bot_staff table: %w", err)
+	}
+
+	rechargeNotifiedTable := `
+	CREATE TABLE IF NOT EXISTS recharge_notified (
+		order_id INTEGER PRIMARY KEY,
+		status TEXT NOT NULL,
+		notified_at INTEGER NOT NULL
+	);`
+	if _, err := db.conn.Exec(rechargeNotifiedTable); err != nil {
+		return fmt.Errorf("failed to create recharge_notified table: %w", err)
+	}
+
+	reminderSentTable := `
+	CREATE TABLE IF NOT EXISTS reminder_sent (
+		sub_id INTEGER NOT NULL,
+		threshold TEXT NOT NULL,
+		sent_at INTEGER NOT NULL,
+		PRIMARY KEY (sub_id, threshold)
+	);`
+	if _, err := db.conn.Exec(reminderSentTable); err != nil {
+		return fmt.Errorf("failed to create reminder_sent table: %w", err)
+	}
+
 	return nil
 }
 
@@ -170,6 +208,23 @@ func (db *DB) UpdateRechargeStatus(id int64, status string) error {
 	_, err := db.conn.Exec("UPDATE recharge_requests SET status = ? WHERE id = ?", status, id)
 	return err
 }
+
+func (db *DB) UpdateRechargeStatusIfPending(id int64, status string) (bool, error) {
+	res, err := db.conn.Exec(
+		"UPDATE recharge_requests SET status = ? WHERE id = ? AND status = 'pending'",
+		status, id)
+	if err != nil {
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	return n == 1, nil
+}
+
+func (db *DB) RollbackRechargeStatusToPending(id int64, fromStatus string) error {
+	_, err := db.conn.Exec("UPDATE recharge_requests SET status = 'pending' WHERE id = ? AND status = ?", id, fromStatus)
+	return err
+}
+
 
 // Settings KV Store
 func (db *DB) GetSetting(key string) (string, error) {
@@ -273,3 +328,118 @@ func (db *DB) GetAllTagMappings() (map[string]string, error) {
 	}
 	return mappings, nil
 }
+
+// User List
+func (db *DB) GetAllUsers() ([]User, error) {
+	rows, err := db.conn.Query("SELECT telegram_id, user_id, created_at FROM users")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []User
+	for rows.Next() {
+		var u User
+		if err := rows.Scan(&u.TelegramID, &u.UserID, &u.CreatedAt); err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+	return users, nil
+}
+
+func (db *DB) GetUserByBackendID(userID int64) (*User, error) {
+	row := db.conn.QueryRow("SELECT telegram_id, user_id, created_at FROM users WHERE user_id = ?", userID)
+	var u User
+	if err := row.Scan(&u.TelegramID, &u.UserID, &u.CreatedAt); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &u, nil
+}
+
+// Staff Management
+func (db *DB) AddStaff(telegramID int64, displayName string) error {
+	_, err := db.conn.Exec(`
+		INSERT INTO bot_staff (telegram_id, display_name, added_at)
+		VALUES (?, ?, ?)
+		ON CONFLICT(telegram_id) DO UPDATE SET display_name = excluded.display_name;`,
+		telegramID, displayName, time.Now().Unix())
+	return err
+}
+
+func (db *DB) RemoveStaff(telegramID int64) error {
+	_, err := db.conn.Exec("DELETE FROM bot_staff WHERE telegram_id = ?", telegramID)
+	return err
+}
+
+func (db *DB) GetStaffList() ([]Staff, error) {
+	rows, err := db.conn.Query("SELECT telegram_id, display_name, added_at FROM bot_staff ORDER BY added_at ASC")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var list []Staff
+	for rows.Next() {
+		var s Staff
+		if err := rows.Scan(&s.TelegramID, &s.DisplayName, &s.AddedAt); err != nil {
+			return nil, err
+		}
+		list = append(list, s)
+	}
+	return list, nil
+}
+
+func (db *DB) IsStaff(telegramID int64) (bool, error) {
+	row := db.conn.QueryRow("SELECT COUNT(1) FROM bot_staff WHERE telegram_id = ?", telegramID)
+	var count int
+	if err := row.Scan(&count); err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+// Recharge Notification Tracking
+func (db *DB) IsRechargeNotified(orderID int64, status string) (bool, error) {
+	row := db.conn.QueryRow("SELECT status FROM recharge_notified WHERE order_id = ?", orderID)
+	var st string
+	if err := row.Scan(&st); err != nil {
+		if err == sql.ErrNoRows {
+			return false, nil
+		}
+		return false, err
+	}
+	return st == status, nil
+}
+
+func (db *DB) SaveRechargeNotified(orderID int64, status string) error {
+	_, err := db.conn.Exec(`
+		INSERT INTO recharge_notified (order_id, status, notified_at)
+		VALUES (?, ?, ?)
+		ON CONFLICT(order_id) DO UPDATE SET status = excluded.status, notified_at = excluded.notified_at;`,
+		orderID, status, time.Now().Unix())
+	return err
+}
+
+// Reminder Tracking
+func (db *DB) IsReminderSent(subID int64, threshold string) (bool, error) {
+	row := db.conn.QueryRow("SELECT COUNT(1) FROM reminder_sent WHERE sub_id = ? AND threshold = ?", subID, threshold)
+	var count int
+	if err := row.Scan(&count); err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func (db *DB) SaveReminderSent(subID int64, threshold string) error {
+	_, err := db.conn.Exec(`
+		INSERT INTO reminder_sent (sub_id, threshold, sent_at)
+		VALUES (?, ?, ?)
+		ON CONFLICT(sub_id, threshold) DO UPDATE SET sent_at = excluded.sent_at;`,
+		subID, threshold, time.Now().Unix())
+	return err
+}
+

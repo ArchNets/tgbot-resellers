@@ -4,13 +4,33 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"time"
 )
+
+type APIError struct {
+	Code int
+	Msg  string
+}
+
+func (e *APIError) Error() string {
+	return fmt.Sprintf("backend error code %d: %s", e.Code, e.Msg)
+}
+
+func IsErrorCode(err error, code int) bool {
+	var apiErr *APIError
+	if errors.As(err, &apiErr) {
+		return apiErr.Code == code
+	}
+	return false
+}
 
 type Client struct {
 	baseURL    string
@@ -96,8 +116,8 @@ func (c *Client) do(req *http.Request, v interface{}) error {
 		return fmt.Errorf("failed to decode response envelope: %w", err)
 	}
 
-	if apiResp.Code != 200 {
-		return fmt.Errorf("backend returned business logic error code %d: %s", apiResp.Code, apiResp.Msg)
+	if apiResp.Code != 200 && apiResp.Code != 0 {
+		return &APIError{Code: apiResp.Code, Msg: apiResp.Msg}
 	}
 
 	if v != nil && len(apiResp.Data) > 0 {
@@ -203,3 +223,139 @@ func (c *Client) DeleteResellerSubscribe(ctx context.Context, req *DeleteReselle
 	}
 	return c.do(httpReq, nil)
 }
+
+func (c *Client) GetDownloadNodes(ctx context.Context, subscribeID int64) ([]DownloadNode, error) {
+	path := fmt.Sprintf("/v1/reseller/user_subscribe/download_nodes?id=%d", subscribeID)
+	httpReq, err := c.newRequest(ctx, "GET", path, nil)
+	if err != nil {
+		return nil, err
+	}
+	var resp DownloadNodesResponse
+	if err := c.do(httpReq, &resp); err != nil {
+		return nil, err
+	}
+	return resp.List, nil
+}
+
+func (c *Client) GetUserSubscribeProfile(ctx context.Context, subscribeID, nodeID int64, format string) (*Profile, error) {
+	path := fmt.Sprintf("/v1/reseller/user_subscribe/profile?id=%d&node_id=%d&format=%s", subscribeID, nodeID, url.QueryEscape(format))
+	httpReq, err := c.newRequest(ctx, "GET", path, nil)
+	if err != nil {
+		return nil, err
+	}
+	var resp ProfileResponse
+	if err := c.do(httpReq, &resp); err != nil {
+		return nil, err
+	}
+
+	decoded, err := base64.StdEncoding.DecodeString(resp.Content)
+	if err != nil {
+		decoded, err = base64.URLEncoding.DecodeString(resp.Content)
+		if err != nil {
+			return nil, fmt.Errorf("failed to base64 decode profile content: %w", err)
+		}
+	}
+
+	return &Profile{
+		Filename:    resp.Filename,
+		ContentType: resp.ContentType,
+		Content:     decoded,
+	}, nil
+}
+
+func (c *Client) GetPaymentCard(ctx context.Context) (*PaymentCard, error) {
+	httpReq, err := c.newRequest(ctx, "GET", "/v1/reseller/payment/card", nil)
+	if err != nil {
+		return nil, err
+	}
+	var resp PaymentCard
+	if err := c.do(httpReq, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+func (c *Client) UpsertPaymentCard(ctx context.Context, card *PaymentCard) error {
+	httpReq, err := c.newRequest(ctx, "PUT", "/v1/reseller/payment/card", card)
+	if err != nil {
+		return err
+	}
+	return c.do(httpReq, nil)
+}
+
+func (c *Client) CreateRecharge(ctx context.Context, req *CreateRechargeRequest) (*RechargeOrder, error) {
+	httpReq, err := c.newRequest(ctx, "POST", "/v1/reseller/recharge", req)
+	if err != nil {
+		return nil, err
+	}
+	var resp RechargeOrder
+	if err := c.do(httpReq, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+func (c *Client) GetRechargeList(ctx context.Context, tier, status string, page, size int) (*RechargeListResponse, error) {
+	path := fmt.Sprintf("/v1/reseller/recharge/list?tier=%s&status=%s&page=%d&size=%d",
+		url.QueryEscape(tier), url.QueryEscape(status), page, size)
+	httpReq, err := c.newRequest(ctx, "GET", path, nil)
+	if err != nil {
+		return nil, err
+	}
+	var resp RechargeListResponse
+	if err := c.do(httpReq, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+func (c *Client) GetRechargeReceipt(ctx context.Context, id int64) (*RechargeReceiptResponse, error) {
+	path := fmt.Sprintf("/v1/reseller/recharge/receipt?id=%d", id)
+	httpReq, err := c.newRequest(ctx, "GET", path, nil)
+	if err != nil {
+		return nil, err
+	}
+	var resp RechargeReceiptResponse
+	if err := c.do(httpReq, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+func (c *Client) ReviewRecharge(ctx context.Context, req *RechargeReviewRequest) error {
+	httpReq, err := c.newRequest(ctx, "PUT", "/v1/reseller/recharge/review", req)
+	if err != nil {
+		return err
+	}
+	return c.do(httpReq, nil)
+}
+
+func (c *Client) GetExchangeRate(ctx context.Context) (*GetResellerExchangeRateResponse, error) {
+	httpReq, err := c.newRequest(ctx, "GET", "/v1/reseller/exchange_rate", nil)
+	if err != nil {
+		return nil, err
+	}
+	var resp GetResellerExchangeRateResponse
+	if err := c.do(httpReq, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+func (c *Client) GetBaseURL() string {
+	return c.baseURL
+}
+
+func (c *Client) GetSiteConfig(ctx context.Context) (*SiteConfigData, error) {
+	httpReq, err := c.newRequest(ctx, "GET", "/v1/common/site/config", nil)
+	if err != nil {
+		return nil, err
+	}
+	var data SiteConfigData
+	if err := c.do(httpReq, &data); err != nil {
+		return nil, err
+	}
+	return &data, nil
+}
+
+

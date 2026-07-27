@@ -35,22 +35,45 @@ type BalanceLogsResponse struct {
 }
 
 type SubscribeRequest struct {
-	UserID      int64 `json:"user_id"`
-	SubscribeID int   `json:"subscribe_id"`
+	UserID            int64  `json:"user_id"`
+	SubscribeID       int    `json:"subscribe_id"`
+	CustomName        string `json:"custom_name,omitempty"`
+	ExpiredAt         int64  `json:"expired_at,omitempty"`
+	ChargeFromBalance bool   `json:"charge_from_balance"`
 }
 
 type SubscribeResponse struct {
-	UUID string `json:"uuid"`
+	UserSubscribeID int64 `json:"user_subscribe_id"`
+}
+
+type SubscriptionPlan struct {
+	Name        string   `json:"name"`
+	DeviceLimit int      `json:"device_limit"`
+	SpeedLimit  int64    `json:"speed_limit"`
+	NodeTags    []string `json:"node_tags"`
 }
 
 type SubscriptionItem struct {
-	ID           int64    `json:"id"`
-	UUID         string   `json:"uuid"`
-	Name         string   `json:"name"`
-	Configs      []string `json:"configs"`
-	TotalTraffic int64    `json:"total_traffic"`
-	UsedTraffic  int64    `json:"used_traffic"`
-	ExpireTime   int64    `json:"expire_time"`
+	ID          int64            `json:"id"`
+	SubscribeID int64            `json:"subscribe_id"`
+	CustomName  string           `json:"custom_name"`
+	Token       string           `json:"token"`
+	Short       string           `json:"short"`
+	Status      int              `json:"status"`
+	Traffic     int64            `json:"traffic"`
+	Upload      int64            `json:"upload"`
+	Download    int64            `json:"download"`
+	StartTime   int64            `json:"start_time"`
+	ExpireTime  int64            `json:"expire_time"`
+	OnlineCount int              `json:"online_count"`
+	Subscribe   SubscriptionPlan `json:"subscribe"`
+}
+
+func (s *SubscriptionItem) GetName() string {
+	if s.CustomName != "" {
+		return s.CustomName
+	}
+	return s.Subscribe.Name
 }
 
 type SubscriptionListResponse struct {
@@ -125,3 +148,95 @@ type UpdateResellerSubscribeRequest struct {
 type DeleteResellerSubscribeRequest struct {
 	ID int64 `json:"id"`
 }
+
+type DownloadNode struct {
+	NodeID   int64    `json:"node_id"`
+	Name     string   `json:"name"`
+	Protocol string   `json:"protocol"`
+	Formats  []string `json:"formats"`
+}
+
+type DownloadNodesResponse struct {
+	List []DownloadNode `json:"list"`
+}
+
+type ProfileResponse struct {
+	Filename    string `json:"filename"`
+	ContentType string `json:"content_type"`
+	Content     string `json:"content"`
+}
+
+type Profile struct {
+	Filename    string
+	ContentType string
+	Content     []byte
+}
+
+type PaymentCard struct {
+	CardNumber   string `json:"card_number"`
+	CardOwner    string `json:"card_owner"`
+	BankName     string `json:"bank_name"`
+	Enabled      bool   `json:"enabled"`
+	Instructions string `json:"instructions"`
+}
+
+type CreateRechargeRequest struct {
+	Tier           string `json:"tier"`
+	CustomerUserID int64  `json:"customer_user_id"`
+	Amount         int64  `json:"amount"`
+	Currency       string `json:"currency"`
+	ReceiptType    string `json:"receipt_type"`
+	ReceiptData    string `json:"receipt_data"`
+	Note           string `json:"note,omitempty"`
+	Source         string `json:"source"`
+}
+
+type RechargeOrder struct {
+	ID               int64  `json:"id"`
+	OrderNo          string `json:"order_no"`
+	Tier             string `json:"tier"`
+	CustomerUserID   int64  `json:"customer_user_id"`
+	AmountUSDCents   int64  `json:"amount_usd_cents"`
+	OriginalAmount   int64  `json:"original_amount"`
+	OriginalCurrency string `json:"original_currency"`
+	Status           string `json:"status"`
+	Note             string `json:"note"`
+	Source           string `json:"source"`
+	ReviewedAt       int64  `json:"reviewed_at"`
+	RejectReason     string `json:"reject_reason"`
+	CreatedAt        int64  `json:"created_at"`
+	UpdatedAt        int64  `json:"updated_at"`
+}
+
+type RechargeListResponse struct {
+	List  []RechargeOrder `json:"list"`
+	Total int             `json:"total"`
+}
+
+type RechargeReceiptResponse struct {
+	ReceiptType string `json:"receipt_type"`
+	ReceiptData string `json:"receipt_data"`
+}
+
+type RechargeReviewRequest struct {
+	ID     int64  `json:"id"`
+	Action string `json:"action"`
+	Reason string `json:"reason,omitempty"`
+}
+
+type GetResellerExchangeRateResponse struct {
+	UsdToIrt float64 `json:"usd_to_irt"`
+}
+
+type SiteConfigData struct {
+	Subscribe struct {
+		SubscribeDomain string `json:"subscribe_domain"`
+		SubscribePath   string `json:"subscribe_path"`
+		PanDomain       bool   `json:"pan_domain"`
+	} `json:"subscribe"`
+	Site struct {
+		Host string `json:"host"`
+	} `json:"site"`
+}
+
+
