@@ -22,6 +22,8 @@ WORKDIR /app
 
 RUN addgroup -S botgroup && adduser -S botuser -G botgroup && chown -R botuser:botgroup /app
 
+COPY --from=builder --chown=botuser:botgroup /app/bot /app/bot
+
 USER botuser
 
 ENTRYPOINT ["/app/bot"]
