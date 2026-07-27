@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"reseller-bot/pkg/backend"
@@ -16,8 +17,20 @@ import (
 
 func main() {
 	configPath := flag.String("config", "config.yaml", "Path to config file")
-	dbPath := flag.String("db", "bot.db", "Path to database file")
+	dbPathFlag := flag.String("db", "bot.db", "Path to database file")
 	flag.Parse()
+
+	dbPathSet := false
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == "db" {
+			dbPathSet = true
+		}
+	})
+
+	resolvedDBPath := *dbPathFlag
+	if envDBPath := os.Getenv("DB_PATH"); envDBPath != "" && !dbPathSet {
+		resolvedDBPath = envDBPath
+	}
 
 	log.Println("Starting Standalone Reseller Telegram Bot...")
 
@@ -28,8 +41,17 @@ func main() {
 	}
 	cfg.LogSummary()
 
+	// Ensure parent directory for database exists (0700)
+	if dir := filepath.Dir(resolvedDBPath); dir != "" && dir != "." {
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			log.Fatalf("Failed to create database directory %s: %v", dir, err)
+		}
+	}
+
+	log.Printf("Using database path: %s", resolvedDBPath)
+
 	// Initialize Database
-	database, err := db.NewDB(*dbPath)
+	database, err := db.NewDB(resolvedDBPath)
 	if err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}

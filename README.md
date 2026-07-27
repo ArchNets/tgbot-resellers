@@ -86,6 +86,7 @@ The bot can be containerized and executed with environment variable configuratio
 | `BACKEND_URL` | String | Base URL of the core reseller API backend | Yes |
 | `RESELLER_API_KEY` | String | Reseller API authentication key (`rn_...`) | Yes |
 | `BOT_ID` | Integer (`int64`) | Numerical identifier of the bot instance | Yes |
+| `DB_PATH` | String | Path to the SQLite database file (default `bot.db`) | No |
 
 *Note: Any environment variable set will override the corresponding value in `config.yaml`.*
 
