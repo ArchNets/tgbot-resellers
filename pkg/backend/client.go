@@ -364,4 +364,25 @@ func (c *Client) GetSiteConfig(ctx context.Context) (*SiteConfigData, error) {
 	return &data, nil
 }
 
+func (c *Client) VerifyPairCode(ctx context.Context, code string, chatID int64) (*VerifyPairCodeResponse, error) {
+	reqData := map[string]interface{}{
+		"code":    code,
+		"chat_id": chatID,
+	}
+	httpReq, err := c.newRequest(ctx, "POST", "/v1/reseller/hosting/bot/verify_pair_code", reqData)
+	if err != nil {
+		return nil, err
+	}
+	var resp VerifyPairCodeResponse
+	if err := c.do(httpReq, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+type VerifyPairCodeResponse struct {
+	Status bool   `json:"status"`
+	Msg    string `json:"msg"`
+}
+
 

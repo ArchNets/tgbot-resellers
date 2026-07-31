@@ -79,6 +79,30 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 	switch msg.Text {
 	case "/start", BtnBack:
 		b.session.Clear(chatID)
+		args := strings.TrimSpace(msg.CommandArguments())
+
+		// First-user auto-bind fallback if no admin configured yet
+		if len(b.cfg.AdminChatIDs) == 0 && chatID > 0 {
+			b.addAdminChatID(chatID)
+			isAdmin = true
+			b.sendSimpleMessage(chatID, "👑 شما به عنوان مدیر اصلی این ربات ثبت شدید.")
+		}
+
+		// Handle pair/login code authentication: /start login_123456
+		if strings.HasPrefix(args, "login_") || strings.HasPrefix(args, "pair_") {
+			codeDigits := strings.TrimPrefix(strings.TrimPrefix(args, "login_"), "pair_")
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			verifyResp, err := b.client.VerifyPairCode(ctx, codeDigits, chatID)
+			if err == nil && verifyResp != nil && verifyResp.Status {
+				b.addAdminChatID(chatID)
+				isAdmin = true
+				b.sendSimpleMessage(chatID, "✅ حساب تلگرام شما با موفقیت به عنوان مدیر ربات فعال شد!")
+			} else {
+				b.sendSimpleMessage(chatID, "❌ کد ورود منقضی شده یا نامعتبر است.")
+			}
+		}
+
 		name := msg.From.FirstName
 		if name == "" {
 			name = "Co Worker"

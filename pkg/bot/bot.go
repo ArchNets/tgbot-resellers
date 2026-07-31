@@ -357,6 +357,19 @@ func (b *Bot) isOwner(chatID int64) bool {
 	}
 	return false
 }
+func (b *Bot) addAdminChatID(chatID int64) {
+	for _, id := range b.cfg.AdminChatIDs {
+		if id == chatID {
+			return
+		}
+	}
+	b.cfg.AdminChatIDs = append(b.cfg.AdminChatIDs, chatID)
+	var ids []string
+	for _, id := range b.cfg.AdminChatIDs {
+		ids = append(ids, fmt.Sprintf("%d", id))
+	}
+	_ = b.db.SetSetting("admin_chat_ids", strings.Join(ids, ","))
+}
 
 func (b *Bot) isAdmin(chatID int64) bool {
 	for _, id := range b.cfg.AdminChatIDs {
