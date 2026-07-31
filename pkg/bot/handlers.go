@@ -238,6 +238,101 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 			b.sendSimpleMessage(chatID, Tr(getLang(msg.From), "reminders_toggled_off"))
 		}
 
+	case BtnAdminPlansSettings, "📦 مدیریت پلانها", "📦 مدیریت پلان ها":
+		if !isAdmin {
+			b.sendSimpleMessage(chatID, "⚠️ شما دسترسی به این بخش را ندارید.")
+			return
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		apiResp, err := b.client.GetResellerSubscribeList(ctx, 1, 100)
+		if err != nil || apiResp == nil {
+			log.Printf("[BtnAdminPlansSettings] GetResellerSubscribeList error for %d: %v", chatID, err)
+			b.sendSimpleMessage(chatID, fmt.Sprintf("❌ خطای ارتباط با سرور backend:\n`%v`", err))
+			return
+		}
+		reply := tgbotapi.NewMessage(chatID, MsgAdminPlansList)
+		reply.ParseMode = tgbotapi.ModeMarkdown
+		reply.ReplyMarkup = AdminPlansInlineKeyboard(apiResp.List)
+		b.api.Send(reply)
+
+	case BtnAdminWelcomeSettings, "📝 مدیریت پیام خوشآمد", "📝 مدیریت پیام خوش آمد":
+		if !isAdmin {
+			b.sendSimpleMessage(chatID, "⚠️ شما دسترسی به این بخش را ندارید.")
+			return
+		}
+		reply := tgbotapi.NewMessage(chatID, MsgAdminWelcomeSettingsMenu)
+		reply.ParseMode = tgbotapi.ModeMarkdown
+		reply.ReplyMarkup = AdminWelcomeSettingsKeyboard()
+		b.api.Send(reply)
+
+	case BtnAdminEditWelcomeText, "✏️ ویرایش متن خوشآمد", "✏️ ویرایش متن خوش آمد":
+		if !isAdmin {
+			b.sendSimpleMessage(chatID, "⚠️ شما دسترسی به این بخش را ندارید.")
+			return
+		}
+		reply := tgbotapi.NewMessage(chatID, MsgAdminAwaitingWelcomeText)
+		reply.ReplyMarkup = BackKeyboard()
+		b.api.Send(reply)
+		b.session.SetState(chatID, StateAdminAwaitingWelcomeText)
+
+	case BtnAdminChangeWelcomeImg, "🖼️ تغییر عکس خوشآمد", "🖼️ تغییر عکس خوش آمد":
+		if !isAdmin {
+			b.sendSimpleMessage(chatID, "⚠️ شما دسترسی به این بخش را ندارید.")
+			return
+		}
+		reply := tgbotapi.NewMessage(chatID, "🖼️ لطفاً تصویر جدید پیام خوش‌آمدگویی را ارسال نمایید:")
+		reply.ReplyMarkup = BackKeyboard()
+		b.api.Send(reply)
+		b.session.SetState(chatID, StateAdminAwaitingWelcomeImage)
+
+	case BtnAdminDelWelcomeImg, "❌ حذف عکس خوشآمد", "❌ حذف عکس خوش آمد":
+		if !isAdmin {
+			b.sendSimpleMessage(chatID, "⚠️ شما دسترسی به این بخش را ندارید.")
+			return
+		}
+		_ = b.db.SetSetting("welcome_image", "")
+		reply := tgbotapi.NewMessage(chatID, "✅ تصویر پیام خوش‌آمدگویی با موفقیت حذف شد.")
+		reply.ReplyMarkup = AdminWelcomeSettingsKeyboard()
+		b.api.Send(reply)
+
+	case BtnAdminTagSettings, "🏷️ مدیریت نام دسته ها":
+		if !isAdmin {
+			b.sendSimpleMessage(chatID, "⚠️ شما دسترسی به این بخش را ندارید.")
+			return
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		apiResp, err := b.client.GetResellerSubscribeList(ctx, 1, 100)
+		if err != nil || apiResp == nil {
+			log.Printf("[BtnAdminTagSettings] GetResellerSubscribeList error for %d: %v", chatID, err)
+			b.sendSimpleMessage(chatID, fmt.Sprintf("❌ خطای ارتباط با سرور backend:\n`%v`", err))
+			return
+		}
+		tagMap := make(map[string]bool)
+		var tagItems []TagItem
+		for _, plan := range apiResp.List {
+			tags := plan.NodeTags
+			if len(tags) == 0 {
+				tags = []string{"عمومی"}
+			}
+			for _, tag := range tags {
+				tag = strings.TrimSpace(tag)
+				if tag != "" && !tagMap[tag] {
+					tagMap[tag] = true
+					display, _ := b.db.GetTagMapping(tag)
+					if display == "" {
+						display = tag
+					}
+					tagItems = append(tagItems, TagItem{Original: tag, Display: display})
+				}
+			}
+		}
+		reply := tgbotapi.NewMessage(chatID, "🏷️ *مدیریت نام دسته‌ها*\n\nبرای تغییر نام نمایشی هر دسته، روی آن کلیک کنید:")
+		reply.ParseMode = tgbotapi.ModeMarkdown
+		reply.ReplyMarkup = AdminTagsInlineKeyboard(tagItems)
+		b.api.Send(reply)
+
 	default:
 		reply := tgbotapi.NewMessage(chatID, "لطفاً یک گزینه از منوی زیر را انتخاب کنید:")
 		reply.ReplyMarkup = MainMenuKeyboard(isAdmin)

@@ -25,6 +25,7 @@ type Bot struct {
 	session       *SessionManager
 	rateMgr       *RateManager
 	siteConfigMgr *SiteConfigManager
+	firstSyncDone bool
 }
 
 func NewBot(cfg *config.Config, database *db.DB, client *backend.Client) (*Bot, error) {
@@ -93,10 +94,18 @@ func (b *Bot) syncRechargeStatus(ctx context.Context) {
 		return
 	}
 
+	isFirstSync := !b.firstSyncDone
+
 	for _, order := range resp.List {
 		if order.Status == "approved" || order.Status == "rejected" {
 			notified, err := b.db.IsRechargeNotified(order.ID, order.Status)
 			if err != nil || notified {
+				continue
+			}
+
+			// On initial startup sync, seed past historical orders into DB silently without sending telegram message spam
+			if isFirstSync {
+				_ = b.db.SaveRechargeNotified(order.ID, order.Status)
 				continue
 			}
 
@@ -121,6 +130,8 @@ func (b *Bot) syncRechargeStatus(ctx context.Context) {
 			_ = b.db.SaveRechargeNotified(order.ID, order.Status)
 		}
 	}
+
+	b.firstSyncDone = true
 }
 
 func (b *Bot) getSubscriptionConfigs(ctx context.Context, subID int64) []string {
