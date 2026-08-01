@@ -199,6 +199,26 @@ const (
 
 	MsgAdminWelcomeImgDeleted = `✅ تصویر پیام خوش‌آمدگویی با موفقیت حذف شد و از این پس پیام به‌صورت متنی ارسال خواهد شد.`
 
+	// Support Message Admin Settings
+	BtnAdminSupportSettings  = "📞 مدیریت پیام پشتیبانی"
+	BtnAdminEditSupportText  = "✏️ ویرایش متن پشتیبانی"
+	BtnAdminChangeSupportImg = "🖼️ تغییر عکس پشتیبانی"
+	BtnAdminDelSupportImg    = "❌ حذف عکس پشتیبانی"
+
+	MsgAdminSupportSettingsMenu = `📞 *مدیریت پیام و تصویر پشتیبانی*
+
+در این بخش می‌توانید متن پیام پشتیبانی و تصویر بالای آن را مدیریت کنید. لطفاً یک گزینه را انتخاب کنید:`
+
+	MsgAdminAwaitingSupportText = `📞 لطفاً متن جدید پیام پشتیبانی را ارسال کنید.`
+
+	MsgAdminSupportTextUpdated = `✅ متن پیام پشتیبانی با موفقیت بروزرسانی شد.`
+
+	MsgAdminAwaitingSupportImg = `🖼️ لطفاً تصویر جدید برای بالای پیام پشتیبانی ارسال کنید:`
+
+	MsgAdminSupportImgUpdated = `✅ تصویر پیام پشتیبانی با موفقیت در دیتابیس ثبت شد.`
+
+	MsgAdminSupportImgDeleted = `✅ تصویر پیام پشتیبانی با موفقیت حذف شد و از این پس پیام به‌صورت متنی ارسال خواهد شد.`
+
 	MsgGeneralError = `❌ متأسفانه خطایی در ارتباط با سرور رخ داده است. لطفاً بعداً تلاش کنید.`
 )
 

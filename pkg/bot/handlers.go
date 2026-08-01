@@ -182,10 +182,23 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 		b.session.SetState(chatID, StateAwaitingAmount)
 
 	case BtnContactSupport:
-		reply := tgbotapi.NewMessage(chatID, MsgContactSupportText)
-		reply.ParseMode = tgbotapi.ModeMarkdown
-		reply.ReplyMarkup = MainMenuKeyboard(isAdmin)
-		b.api.Send(reply)
+		supportText, _ := b.db.GetSetting("support_text")
+		if supportText == "" {
+			supportText = MsgContactSupportText
+		}
+		supportImage, _ := b.db.GetSetting("support_image")
+		if supportImage != "" {
+			reply := tgbotapi.NewPhoto(chatID, tgbotapi.FileID(supportImage))
+			reply.Caption = supportText
+			reply.ParseMode = tgbotapi.ModeMarkdown
+			reply.ReplyMarkup = MainMenuKeyboard(isAdmin)
+			b.api.Send(reply)
+		} else {
+			reply := tgbotapi.NewMessage(chatID, supportText)
+			reply.ParseMode = tgbotapi.ModeMarkdown
+			reply.ReplyMarkup = MainMenuKeyboard(isAdmin)
+			b.api.Send(reply)
+		}
 
 	case BtnAdminPanel, "/admin":
 		if !isAdmin {
@@ -320,6 +333,46 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 		reply.ReplyMarkup = AdminWelcomeSettingsKeyboard()
 		b.api.Send(reply)
 
+	case BtnAdminSupportSettings:
+		if !isAdmin {
+			b.sendSimpleMessage(chatID, "⚠️ شما دسترسی به این بخش را ندارید.")
+			return
+		}
+		reply := tgbotapi.NewMessage(chatID, MsgAdminSupportSettingsMenu)
+		reply.ParseMode = tgbotapi.ModeMarkdown
+		reply.ReplyMarkup = AdminSupportSettingsKeyboard()
+		b.api.Send(reply)
+
+	case BtnAdminEditSupportText:
+		if !isAdmin {
+			b.sendSimpleMessage(chatID, "⚠️ شما دسترسی به این بخش را ندارید.")
+			return
+		}
+		reply := tgbotapi.NewMessage(chatID, MsgAdminAwaitingSupportText)
+		reply.ReplyMarkup = BackKeyboard()
+		b.api.Send(reply)
+		b.session.SetState(chatID, StateAdminAwaitingSupportText)
+
+	case BtnAdminChangeSupportImg:
+		if !isAdmin {
+			b.sendSimpleMessage(chatID, "⚠️ شما دسترسی به این بخش را ندارید.")
+			return
+		}
+		reply := tgbotapi.NewMessage(chatID, MsgAdminAwaitingSupportImg)
+		reply.ReplyMarkup = BackKeyboard()
+		b.api.Send(reply)
+		b.session.SetState(chatID, StateAdminAwaitingSupportImage)
+
+	case BtnAdminDelSupportImg:
+		if !isAdmin {
+			b.sendSimpleMessage(chatID, "⚠️ شما دسترسی به این بخش را ندارید.")
+			return
+		}
+		_ = b.db.SetSetting("support_image", "")
+		reply := tgbotapi.NewMessage(chatID, MsgAdminSupportImgDeleted)
+		reply.ReplyMarkup = AdminSupportSettingsKeyboard()
+		b.api.Send(reply)
+
 	case BtnAdminTagSettings, "🏷️ مدیریت نام دسته ها":
 		if !isAdmin {
 			b.sendSimpleMessage(chatID, "⚠️ شما دسترسی به این بخش را ندارید.")
@@ -417,6 +470,8 @@ func (b *Bot) handleStateMessage(msg *tgbotapi.Message, u *db.User, sess *Sessio
 		if isAdmin {
 			if previousState == StateAdminAwaitingWelcomeText || previousState == StateAdminAwaitingWelcomeImage {
 				welcomeMsg.ReplyMarkup = AdminWelcomeSettingsKeyboard()
+			} else if previousState == StateAdminAwaitingSupportText || previousState == StateAdminAwaitingSupportImage {
+				welcomeMsg.ReplyMarkup = AdminSupportSettingsKeyboard()
 			} else {
 				welcomeMsg.ReplyMarkup = AdminMenuKeyboard(b.isOwner(chatID))
 			}
@@ -974,6 +1029,42 @@ func (b *Bot) handleStateMessage(msg *tgbotapi.Message, u *db.User, sess *Sessio
 		b.session.Clear(chatID)
 		reply := tgbotapi.NewMessage(chatID, MsgAdminWelcomeImgUpdated)
 		reply.ReplyMarkup = AdminWelcomeSettingsKeyboard()
+		b.api.Send(reply)
+
+	case StateAdminAwaitingSupportText:
+		if !isAdmin {
+			b.session.Clear(chatID)
+			return
+		}
+		txt := strings.TrimSpace(msg.Text)
+		if txt == "" {
+			b.sendSimpleMessage(chatID, "⚠️ متن پیام پشتیبانی نمی‌تواند خالی باشد. مجدداً وارد کنید:")
+			return
+		}
+
+		_ = b.db.SetSetting("support_text", txt)
+
+		b.session.Clear(chatID)
+		reply := tgbotapi.NewMessage(chatID, MsgAdminSupportTextUpdated)
+		reply.ReplyMarkup = AdminSupportSettingsKeyboard()
+		b.api.Send(reply)
+
+	case StateAdminAwaitingSupportImage:
+		if !isAdmin {
+			b.session.Clear(chatID)
+			return
+		}
+		if len(msg.Photo) == 0 {
+			b.sendSimpleMessage(chatID, "⚠️ خطا! لطفاً تصویر جدید برای پیام پشتیبانی را ارسال نمایید:")
+			return
+		}
+
+		photo := msg.Photo[len(msg.Photo)-1]
+		_ = b.db.SetSetting("support_image", photo.FileID)
+
+		b.session.Clear(chatID)
+		reply := tgbotapi.NewMessage(chatID, MsgAdminSupportImgUpdated)
+		reply.ReplyMarkup = AdminSupportSettingsKeyboard()
 		b.api.Send(reply)
 
 	case StateAdminAwaitingTagDisplayName:

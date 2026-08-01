@@ -6,6 +6,7 @@ type UserRegisterRequest struct {
 	LastName     string `json:"last_name"`
 	Username     string `json:"username"`
 	LanguageCode string `json:"language_code"`
+	BotID        int64  `json:"bot_id,omitempty"`
 }
 
 type UserRegisterResponse struct {
@@ -103,6 +104,7 @@ type ResellerSubscribePlan struct {
 	Sell                   bool               `json:"sell"`
 	Sort                   int                `json:"sort"`
 	ResellerSubscriptionID int64              `json:"reseller_subscription_id"`
+	BotID                  int64              `json:"bot_id,omitempty"`
 	CreatedTime            int64              `json:"created_at"`
 	UpdatedTime            int64              `json:"updated_at"`
 }
@@ -124,6 +126,7 @@ type CreateResellerSubscribeRequest struct {
 	DeviceLimit            int64              `json:"device_limit"`
 	Nodes                  []int64            `json:"nodes,omitempty"`
 	ResellerSubscriptionID int64              `json:"reseller_subscription_id"`
+	BotID                  int64              `json:"bot_id,omitempty"`
 	Show                   bool               `json:"show"`
 	Sell                   bool               `json:"sell"`
 }
@@ -141,12 +144,28 @@ type UpdateResellerSubscribeRequest struct {
 	DeviceLimit            int64              `json:"device_limit"`
 	Nodes                  []int64            `json:"nodes,omitempty"`
 	ResellerSubscriptionID int64              `json:"reseller_subscription_id"`
+	BotID                  int64              `json:"bot_id,omitempty"`
 	Show                   bool               `json:"show"`
 	Sell                   bool               `json:"sell"`
 }
 
 type DeleteResellerSubscribeRequest struct {
 	ID int64 `json:"id"`
+}
+
+type AdminPaymentCard struct {
+	CardNumber   string `json:"card_number"`
+	CardOwner    string `json:"card_owner"`
+	BankName     string `json:"bank_name"`
+	Instructions string `json:"instructions"`
+}
+
+type ResellerPaymentCard struct {
+	CardNumber   string `json:"card_number"`
+	CardOwner    string `json:"card_owner"`
+	BankName     string `json:"bank_name"`
+	Enabled      bool   `json:"enabled"`
+	Instructions string `json:"instructions"`
 }
 
 type DownloadNode struct {
@@ -183,6 +202,7 @@ type PaymentCard struct {
 type CreateRechargeRequest struct {
 	Tier           string `json:"tier"`
 	CustomerUserID int64  `json:"customer_user_id"`
+	BotID          int64  `json:"bot_id,omitempty"`
 	Amount         int64  `json:"amount"`
 	Currency       string `json:"currency"`
 	ReceiptType    string `json:"receipt_type"`
@@ -196,6 +216,7 @@ type RechargeOrder struct {
 	OrderNo          string `json:"order_no"`
 	Tier             string `json:"tier"`
 	CustomerUserID   int64  `json:"customer_user_id"`
+	BotID            int64  `json:"bot_id,omitempty"`
 	AmountUSDCents   int64  `json:"amount_usd_cents"`
 	OriginalAmount   int64  `json:"original_amount"`
 	OriginalCurrency string `json:"original_currency"`

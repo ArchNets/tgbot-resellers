@@ -23,6 +23,8 @@ const (
 	StateAdminAwaitingPlanDescription UserState = "admin_awaiting_plan_desc"
 	StateAdminAwaitingWelcomeText     UserState = "admin_awaiting_welcome_text"
 	StateAdminAwaitingWelcomeImage    UserState = "admin_awaiting_welcome_image"
+	StateAdminAwaitingSupportText     UserState = "admin_awaiting_support_text"
+	StateAdminAwaitingSupportImage    UserState = "admin_awaiting_support_image"
 	StateAdminAwaitingTagDisplayName  UserState = "admin_awaiting_tag_display_name"
 	StateAwaitingSubCustomName        UserState = "awaiting_sub_custom_name"
 )

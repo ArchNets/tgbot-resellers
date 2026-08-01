@@ -55,14 +55,17 @@ func AdminMenuKeyboard(isOwner bool) tgbotapi.ReplyKeyboardMarkup {
 		),
 		tgbotapi.NewKeyboardButtonRow(
 			tgbotapi.NewKeyboardButton(BtnAdminWelcomeSettings),
+			tgbotapi.NewKeyboardButton(BtnAdminSupportSettings),
+		),
+		tgbotapi.NewKeyboardButtonRow(
 			tgbotapi.NewKeyboardButton(BtnAdminTagSettings),
-		),
-		tgbotapi.NewKeyboardButtonRow(
 			tgbotapi.NewKeyboardButton(BtnAdminStaffSettings),
-			tgbotapi.NewKeyboardButton(BtnAdminChannelGate),
 		),
 		tgbotapi.NewKeyboardButtonRow(
+			tgbotapi.NewKeyboardButton(BtnAdminChannelGate),
 			tgbotapi.NewKeyboardButton(BtnAdminQRToggle),
+		),
+		tgbotapi.NewKeyboardButtonRow(
 			tgbotapi.NewKeyboardButton(BtnAdminReminderToggle),
 		),
 		tgbotapi.NewKeyboardButtonRow(
@@ -116,6 +119,21 @@ func AdminWelcomeSettingsKeyboard() tgbotapi.ReplyKeyboardMarkup {
 		),
 		tgbotapi.NewKeyboardButtonRow(
 			tgbotapi.NewKeyboardButton(BtnAdminDelWelcomeImg),
+		),
+		tgbotapi.NewKeyboardButtonRow(
+			tgbotapi.NewKeyboardButton(BtnBack),
+		),
+	)
+}
+
+func AdminSupportSettingsKeyboard() tgbotapi.ReplyKeyboardMarkup {
+	return tgbotapi.NewReplyKeyboard(
+		tgbotapi.NewKeyboardButtonRow(
+			tgbotapi.NewKeyboardButton(BtnAdminEditSupportText),
+			tgbotapi.NewKeyboardButton(BtnAdminChangeSupportImg),
+		),
+		tgbotapi.NewKeyboardButtonRow(
+			tgbotapi.NewKeyboardButton(BtnAdminDelSupportImg),
 		),
 		tgbotapi.NewKeyboardButtonRow(
 			tgbotapi.NewKeyboardButton(BtnBack),

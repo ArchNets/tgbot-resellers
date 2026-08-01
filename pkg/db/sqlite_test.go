@@ -134,6 +134,24 @@ func TestDBOperations(t *testing.T) {
 		t.Errorf("Expected welcome_image value, got '%s'", val)
 	}
 
+	err = db.SetSetting("support_text", "Contact support via @MyCustomSupport")
+	if err != nil {
+		t.Fatalf("SetSetting support_text failed: %v", err)
+	}
+	val, err = db.GetSetting("support_text")
+	if err != nil || val != "Contact support via @MyCustomSupport" {
+		t.Errorf("Expected support_text value, got '%s' (err: %v)", val, err)
+	}
+
+	err = db.SetSetting("support_image", "file_support_img_id")
+	if err != nil {
+		t.Fatalf("SetSetting support_image failed: %v", err)
+	}
+	val, err = db.GetSetting("support_image")
+	if err != nil || val != "file_support_img_id" {
+		t.Errorf("Expected support_image value, got '%s' (err: %v)", val, err)
+	}
+
 	// 4. Test Plans CRUD
 	plan := &Plan{
 		SubscribeID: 99,
