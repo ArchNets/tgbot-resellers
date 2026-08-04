@@ -36,10 +36,11 @@ func IsErrorCode(err error, code int) bool {
 type Client struct {
 	baseURL    string
 	apiKey     string
+	botID      int64
 	httpClient *http.Client
 }
 
-func NewClient(baseURL, apiKey string, hostMappings map[string]string, insecureSkipVerify bool) *Client {
+func NewClient(baseURL, apiKey string, hostMappings map[string]string, insecureSkipVerify bool, botID ...int64) *Client {
 	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	if baseURL != "" && !strings.HasPrefix(baseURL, "http://") && !strings.HasPrefix(baseURL, "https://") {
 		baseURL = "https://" + baseURL
@@ -65,7 +66,7 @@ func NewClient(baseURL, apiKey string, hostMappings map[string]string, insecureS
 		},
 	}
 
-	return &Client{
+	c := &Client{
 		baseURL: baseURL,
 		apiKey:  apiKey,
 		httpClient: &http.Client{
@@ -73,6 +74,10 @@ func NewClient(baseURL, apiKey string, hostMappings map[string]string, insecureS
 			Transport: transport,
 		},
 	}
+	if len(botID) > 0 {
+		c.botID = botID[0]
+	}
+	return c
 }
 
 func (c *Client) newRequest(ctx context.Context, method, path string, body interface{}) (*http.Request, error) {
@@ -136,6 +141,9 @@ func (c *Client) do(req *http.Request, v interface{}) error {
 }
 
 func (c *Client) RegisterUser(ctx context.Context, req *UserRegisterRequest) (*UserRegisterResponse, error) {
+	if req.BotID == 0 && c.botID > 0 {
+		req.BotID = c.botID
+	}
 	httpReq, err := c.newRequest(ctx, "POST", "/v1/reseller/user", req)
 	if err != nil {
 		return nil, err
@@ -195,6 +203,9 @@ func (c *Client) GetUserSubscriptions(ctx context.Context, userID int64, page, s
 
 func (c *Client) GetResellerSubscribeList(ctx context.Context, page, size int) (*GetResellerSubscribeListResponse, error) {
 	path := fmt.Sprintf("/v1/reseller/subscribe/list?page=%d&size=%d", page, size)
+	if c.botID > 0 {
+		path = fmt.Sprintf("/v1/reseller/subscribe/list?page=%d&size=%d&bot_id=%d", page, size, c.botID)
+	}
 	httpReq, err := c.newRequest(ctx, "GET", path, nil)
 	if err != nil {
 		return nil, err
@@ -290,6 +301,9 @@ func (c *Client) UpsertPaymentCard(ctx context.Context, card *PaymentCard) error
 }
 
 func (c *Client) CreateRecharge(ctx context.Context, req *CreateRechargeRequest) (*RechargeOrder, error) {
+	if req.BotID == 0 && c.botID > 0 {
+		req.BotID = c.botID
+	}
 	httpReq, err := c.newRequest(ctx, "POST", "/v1/reseller/recharge", req)
 	if err != nil {
 		return nil, err

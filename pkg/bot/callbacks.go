@@ -131,6 +131,9 @@ func (b *Bot) handleCallbackQuery(cb *tgbotapi.CallbackQuery) {
 		var plans []backend.ResellerSubscribePlan
 		for _, p := range apiResp.List {
 			if p.Show {
+				if b.cfg.BotID > 0 && p.BotID > 0 && p.BotID != b.cfg.BotID {
+					continue
+				}
 				hasTag := false
 				for _, t := range p.NodeTags {
 					if strings.TrimSpace(t) == tag {

@@ -288,9 +288,16 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 			b.sendSimpleMessage(chatID, fmt.Sprintf("❌ خطای ارتباط با سرور backend:\n`%v`", err))
 			return
 		}
+		var filteredList []backend.ResellerSubscribePlan
+		for _, p := range apiResp.List {
+			if b.cfg.BotID > 0 && p.BotID > 0 && p.BotID != b.cfg.BotID {
+				continue
+			}
+			filteredList = append(filteredList, p)
+		}
 		reply := tgbotapi.NewMessage(chatID, MsgAdminPlansList)
 		reply.ParseMode = tgbotapi.ModeMarkdown
-		reply.ReplyMarkup = AdminPlansInlineKeyboard(apiResp.List)
+		reply.ReplyMarkup = AdminPlansInlineKeyboard(filteredList)
 		b.api.Send(reply)
 
 	case BtnAdminWelcomeSettings, "📝 مدیریت پیام خوشآمد", "📝 مدیریت پیام خوش آمد":
@@ -1190,6 +1197,9 @@ func (b *Bot) renderTagsMenu(chatID int64, messageID int, from *tgbotapi.User) {
 	var plans []backend.ResellerSubscribePlan
 	for _, p := range apiResp.List {
 		if p.Show {
+			if b.cfg.BotID > 0 && p.BotID > 0 && p.BotID != b.cfg.BotID {
+				continue
+			}
 			plans = append(plans, p)
 			for _, t := range p.NodeTags {
 				tag := strings.TrimSpace(t)

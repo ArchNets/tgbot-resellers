@@ -61,7 +61,7 @@ func main() {
 	}()
 
 	// Initialize Backend client
-	backendClient := backend.NewClient(cfg.BackendURL, cfg.ResellerAPIKey, cfg.HostMappings, cfg.InsecureSkipVerify)
+	backendClient := backend.NewClient(cfg.BackendURL, cfg.ResellerAPIKey, cfg.HostMappings, cfg.InsecureSkipVerify, cfg.BotID)
 
 	// Initialize Bot
 	telegramBot, err := bot.NewBot(cfg, database, backendClient)
