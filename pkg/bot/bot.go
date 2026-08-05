@@ -6,6 +6,7 @@ import (
 	"log"
 	"math"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -34,7 +35,7 @@ func NewBot(cfg *config.Config, database *db.DB, client *backend.Client) (*Bot, 
 		return nil, err
 	}
 
-	return &Bot{
+	b := &Bot{
 		cfg:           cfg,
 		api:           api,
 		client:        client,
@@ -42,7 +43,10 @@ func NewBot(cfg *config.Config, database *db.DB, client *backend.Client) (*Bot, 
 		session:       NewSessionManager(),
 		rateMgr:       NewRateManager(),
 		siteConfigMgr: NewSiteConfigManager(),
-	}, nil
+	}
+
+	b.loadPersistedAdminIDs()
+	return b, nil
 }
 
 func (b *Bot) Start(ctx context.Context) {
@@ -357,13 +361,35 @@ func (b *Bot) isOwner(chatID int64) bool {
 	}
 	return false
 }
-func (b *Bot) addAdminChatID(chatID int64) {
+func (b *Bot) addAdminIDInMemory(chatID int64) {
 	for _, id := range b.cfg.AdminChatIDs {
 		if id == chatID {
 			return
 		}
 	}
 	b.cfg.AdminChatIDs = append(b.cfg.AdminChatIDs, chatID)
+}
+
+func (b *Bot) loadPersistedAdminIDs() {
+	val, err := b.db.GetSetting("admin_chat_ids")
+	if err != nil || strings.TrimSpace(val) == "" {
+		return
+	}
+	parts := strings.Split(val, ",")
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		id, err := strconv.ParseInt(p, 10, 64)
+		if err == nil && id > 0 {
+			b.addAdminIDInMemory(id)
+		}
+	}
+}
+
+func (b *Bot) addAdminChatID(chatID int64) {
+	b.addAdminIDInMemory(chatID)
 	var ids []string
 	for _, id := range b.cfg.AdminChatIDs {
 		ids = append(ids, fmt.Sprintf("%d", id))

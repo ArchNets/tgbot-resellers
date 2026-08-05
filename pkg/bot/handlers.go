@@ -611,14 +611,21 @@ func (b *Bot) handleStateMessage(msg *tgbotapi.Message, u *db.User, sess *Sessio
 		b.api.Send(reply)
 
 	case StateAwaitingReceipt:
-		if len(msg.Photo) == 0 {
+		var fileID string
+		isPhoto := false
+
+		if len(msg.Photo) > 0 {
+			photo := msg.Photo[len(msg.Photo)-1]
+			fileID = photo.FileID
+			isPhoto = true
+		} else if msg.Document != nil {
+			fileID = msg.Document.FileID
+		} else {
 			b.sendSimpleMessage(chatID, MsgInvalidReceipt)
 			return
 		}
 
-		photo := msg.Photo[len(msg.Photo)-1]
-
-		base64Receipt, err := b.processReceiptPhoto(photo.FileID)
+		base64Receipt, err := b.processReceiptPhoto(fileID)
 		if err != nil {
 			log.Printf("Failed to process receipt photo: %v", err)
 			b.sendSimpleMessage(chatID, MsgGeneralError)
@@ -684,12 +691,22 @@ func (b *Bot) handleStateMessage(msg *tgbotapi.Message, u *db.User, sess *Sessio
 		orderID := order.ID
 		allAdminIDs := b.getAllAdminIDs()
 		for _, adminID := range allAdminIDs {
-			adminPhoto := tgbotapi.NewPhoto(adminID, tgbotapi.FileID(photo.FileID))
-			adminPhoto.Caption = adminText
-			adminPhoto.ParseMode = tgbotapi.ModeMarkdown
-			adminPhoto.ReplyMarkup = AdminApprovalKeyboard(orderID)
-			if _, err := b.api.Send(adminPhoto); err != nil {
-				log.Printf("Failed to send admin notification to %d: %v", adminID, err)
+			var sendErr error
+			if isPhoto {
+				adminPhoto := tgbotapi.NewPhoto(adminID, tgbotapi.FileID(fileID))
+				adminPhoto.Caption = adminText
+				adminPhoto.ParseMode = tgbotapi.ModeMarkdown
+				adminPhoto.ReplyMarkup = AdminApprovalKeyboard(orderID)
+				_, sendErr = b.api.Send(adminPhoto)
+			} else {
+				adminDoc := tgbotapi.NewDocument(adminID, tgbotapi.FileID(fileID))
+				adminDoc.Caption = adminText
+				adminDoc.ParseMode = tgbotapi.ModeMarkdown
+				adminDoc.ReplyMarkup = AdminApprovalKeyboard(orderID)
+				_, sendErr = b.api.Send(adminDoc)
+			}
+			if sendErr != nil {
+				log.Printf("Failed to send admin notification to %d: %v", adminID, sendErr)
 			}
 		}
 
