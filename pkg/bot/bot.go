@@ -382,10 +382,7 @@ func (b *Bot) handleUpdate(update tgbotapi.Update) {
 }
 
 func (b *Bot) isOwner(chatID int64) bool {
-	if len(b.cfg.AdminChatIDs) > 0 {
-		return chatID == b.cfg.AdminChatIDs[0]
-	}
-	return false
+	return b.isAdmin(chatID)
 }
 func (b *Bot) addAdminIDInMemory(chatID int64) {
 	for _, id := range b.cfg.AdminChatIDs {

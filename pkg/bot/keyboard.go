@@ -36,18 +36,6 @@ func MainMenuKeyboard(isAdmin bool) tgbotapi.ReplyKeyboardMarkup {
 }
 
 func AdminMenuKeyboard(isOwner bool) tgbotapi.ReplyKeyboardMarkup {
-	if !isOwner {
-		return tgbotapi.NewReplyKeyboard(
-			tgbotapi.NewKeyboardButtonRow(
-				tgbotapi.NewKeyboardButton(BtnAdminPlansSettings),
-				tgbotapi.NewKeyboardButton(BtnAdminTagSettings),
-			),
-			tgbotapi.NewKeyboardButtonRow(
-				tgbotapi.NewKeyboardButton(BtnBack),
-			),
-		)
-	}
-
 	return tgbotapi.NewReplyKeyboard(
 		tgbotapi.NewKeyboardButtonRow(
 			tgbotapi.NewKeyboardButton(BtnAdminCardSettings),
