@@ -76,7 +76,12 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 	}
 
 	// 3. Handle commands & standard menu buttons
-	switch msg.Text {
+	msgText := msg.Text
+	if (msg.IsCommand() && msg.Command() == "start") || strings.HasPrefix(msg.Text, "/start") {
+		msgText = "/start"
+	}
+
+	switch msgText {
 	case "/start", BtnBack:
 		b.session.Clear(chatID)
 		args := strings.TrimSpace(msg.CommandArguments())
@@ -90,7 +95,8 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 			if err == nil && verifyResp != nil && verifyResp.Status {
 				b.addAdminChatID(chatID)
 				isAdmin = true
-				b.sendSimpleMessage(chatID, "✅ حساب تلگرام شما با موفقیت به عنوان مدیر ربات فعال شد!")
+				isOwner = true
+				b.sendSimpleMessage(chatID, "👑 شما به عنوان مدیر اصلی این ربات ثبت شدید.")
 			} else {
 				b.sendSimpleMessage(chatID, "❌ کد ورود منقضی شده یا نامعتبر است.")
 			}
@@ -1189,10 +1195,10 @@ func (b *Bot) handleBuyService(chatID int64) {
 	if !b.checkChannelGate(chatID) {
 		return
 	}
-	b.renderTagsMenu(chatID, 0, nil)
+	b.renderTagsMenu(chatID, 0)
 }
 
-func (b *Bot) renderTagsMenu(chatID int64, messageID int, from *tgbotapi.User) {
+func (b *Bot) renderTagsMenu(chatID int64, messageID int) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 

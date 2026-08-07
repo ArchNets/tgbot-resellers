@@ -40,7 +40,7 @@ func (b *Bot) handleCallbackQuery(cb *tgbotapi.CallbackQuery) {
 
 	if data == "back_to_tags" {
 		b.answerCallback(cb.ID, "", false)
-		b.renderTagsMenu(chatID, cb.Message.MessageID, cb.From)
+		b.renderTagsMenu(chatID, cb.Message.MessageID)
 		return
 	}
 
