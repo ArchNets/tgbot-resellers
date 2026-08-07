@@ -81,13 +81,6 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 		b.session.Clear(chatID)
 		args := strings.TrimSpace(msg.CommandArguments())
 
-		// First-user auto-bind fallback if no admin configured yet
-		if len(b.cfg.AdminChatIDs) == 0 && chatID > 0 {
-			b.addAdminChatID(chatID)
-			isAdmin = true
-			b.sendSimpleMessage(chatID, "👑 شما به عنوان مدیر اصلی این ربات ثبت شدید.")
-		}
-
 		// Handle pair/login code authentication: /start login_123456
 		if strings.HasPrefix(args, "login_") || strings.HasPrefix(args, "pair_") {
 			codeDigits := strings.TrimPrefix(strings.TrimPrefix(args, "login_"), "pair_")

@@ -399,4 +399,18 @@ type VerifyPairCodeResponse struct {
 	Msg    string `json:"msg"`
 }
 
+type GetBotAdminIDsResponse struct {
+	AdminChatIDs string `json:"admin_chat_ids"`
+}
 
+func (c *Client) GetBotAdminIDs(ctx context.Context) (*GetBotAdminIDsResponse, error) {
+	httpReq, err := c.newRequest(ctx, "GET", "/v1/reseller/hosting/bot/admin_ids", nil)
+	if err != nil {
+		return nil, err
+	}
+	var resp GetBotAdminIDsResponse
+	if err := c.do(httpReq, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}

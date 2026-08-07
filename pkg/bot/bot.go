@@ -52,6 +52,9 @@ func NewBot(cfg *config.Config, database *db.DB, client *backend.Client) (*Bot, 
 func (b *Bot) Start(ctx context.Context) {
 	log.Printf("Authorized on account %s", b.api.Self.UserName)
 
+	// Sync admin IDs from server on startup
+	b.syncAdminIDsFromServer(ctx)
+
 	go b.siteConfigMgr.GetSiteConfig(ctx, b.client)
 	go b.startPoller(ctx)
 
@@ -76,6 +79,7 @@ func (b *Bot) startPoller(ctx context.Context) {
 	defer ticker.Stop()
 
 	lastExpiryCheck := time.Time{}
+	lastAdminSync := time.Now() // Already synced on startup
 
 	for {
 		select {
@@ -83,6 +87,12 @@ func (b *Bot) startPoller(ctx context.Context) {
 			return
 		case <-ticker.C:
 			b.syncRechargeStatus(ctx)
+
+			// Sync admin IDs from server every 5 minutes
+			if time.Since(lastAdminSync) >= 5*time.Minute {
+				b.syncAdminIDsFromServer(ctx)
+				lastAdminSync = time.Now()
+			}
 
 			if time.Since(lastExpiryCheck) >= 24*time.Hour {
 				b.checkExpiryReminders(ctx)
@@ -390,11 +400,56 @@ func (b *Bot) loadPersistedAdminIDs() {
 
 func (b *Bot) addAdminChatID(chatID int64) {
 	b.addAdminIDInMemory(chatID)
+	b.persistAdminIDs()
+}
+
+func (b *Bot) persistAdminIDs() {
 	var ids []string
 	for _, id := range b.cfg.AdminChatIDs {
 		ids = append(ids, fmt.Sprintf("%d", id))
 	}
 	_ = b.db.SetSetting("admin_chat_ids", strings.Join(ids, ","))
+}
+
+func (b *Bot) syncAdminIDsFromServer(ctx context.Context) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	resp, err := b.client.GetBotAdminIDs(ctx)
+	if err != nil {
+		log.Printf("[syncAdminIDs] Failed to fetch admin IDs from server: %v", err)
+		return
+	}
+
+	serverIDs := strings.TrimSpace(resp.AdminChatIDs)
+	if serverIDs == "" {
+		// Server has no admin IDs set — keep local state as-is
+		return
+	}
+
+	// Parse server-side admin IDs
+	var newIDs []int64
+	parts := strings.Split(serverIDs, ",")
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		id, err := strconv.ParseInt(p, 10, 64)
+		if err == nil && id > 0 {
+			newIDs = append(newIDs, id)
+		}
+	}
+
+	if len(newIDs) == 0 {
+		return
+	}
+
+	// Replace in-memory admin IDs with server-authoritative list
+	// Server is the source of truth — the owner is always IDs[0]
+	b.cfg.AdminChatIDs = newIDs
+	b.persistAdminIDs()
+	log.Printf("[syncAdminIDs] Synced %d admin IDs from server", len(newIDs))
 }
 
 func (b *Bot) isAdmin(chatID int64) bool {
