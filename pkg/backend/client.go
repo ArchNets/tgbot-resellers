@@ -414,3 +414,21 @@ func (c *Client) GetBotAdminIDs(ctx context.Context) (*GetBotAdminIDsResponse, e
 	}
 	return &resp, nil
 }
+
+type GetResellerSubscribeDomainResponse struct {
+	SubscribeDomain string `json:"subscribe_domain"`
+	GenericDomain   string `json:"generic_domain,omitempty"`
+	EffectiveDomain string `json:"effective_domain"`
+}
+
+func (c *Client) GetResellerSubscribeDomain(ctx context.Context) (*GetResellerSubscribeDomainResponse, error) {
+	httpReq, err := c.newRequest(ctx, "GET", "/v1/reseller/subscribe_domain", nil)
+	if err != nil {
+		return nil, err
+	}
+	var resp GetResellerSubscribeDomainResponse
+	if err := c.do(httpReq, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}

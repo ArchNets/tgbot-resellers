@@ -274,7 +274,17 @@ func (b *Bot) getSubscribeLink(token string) string {
 	defer cancel()
 
 	var domain, path string
-	if b.siteConfigMgr != nil {
+
+	// 1. Try reseller custom domain / assigned generic domain from backend
+	if b.client != nil {
+		resellerSubDom, err := b.client.GetResellerSubscribeDomain(ctx)
+		if err == nil && resellerSubDom != nil {
+			domain = parseFirstDomain(resellerSubDom.EffectiveDomain)
+		}
+	}
+
+	// 2. Fallback to site config domain
+	if domain == "" && b.siteConfigMgr != nil {
 		siteCfg := b.siteConfigMgr.GetSiteConfig(ctx, b.client)
 		if siteCfg != nil {
 			domain = parseFirstDomain(siteCfg.Subscribe.SubscribeDomain)
@@ -285,6 +295,7 @@ func (b *Bot) getSubscribeLink(token string) string {
 		}
 	}
 
+	// 3. Fallback to client base URL
 	if domain == "" && b.client != nil {
 		u, err := url.Parse(b.client.GetBaseURL())
 		if err == nil && u.Host != "" {
