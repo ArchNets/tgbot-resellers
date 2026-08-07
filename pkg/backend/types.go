@@ -252,6 +252,7 @@ type GetResellerExchangeRateResponse struct {
 type SiteConfigData struct {
 	Subscribe struct {
 		SubscribeDomain string `json:"subscribe_domain"`
+		ResellerDomain  string `json:"reseller_domain,omitempty"`
 		SubscribePath   string `json:"subscribe_path"`
 		PanDomain       bool   `json:"pan_domain"`
 	} `json:"subscribe"`
