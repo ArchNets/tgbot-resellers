@@ -7,6 +7,7 @@ import (
 
 	"reseller-bot/pkg/backend"
 	"reseller-bot/pkg/config"
+	"reseller-bot/pkg/db"
 )
 
 func TestCalculateExpiryMs(t *testing.T) {
@@ -122,6 +123,22 @@ func TestGetSubscribeLink(t *testing.T) {
 	expected3 := "https://api.backend.com:8443/v1/subscribe/config?token=token123"
 	if link3 != expected3 {
 		t.Errorf("case 3 got %q, want %q", link3, expected3)
+	}
+
+	// Case 4: Local SQLite setting override (custom_sub_domain)
+	tmpDB, err := db.NewDB(":memory:")
+	if err == nil {
+		defer tmpDB.Close()
+		_ = tmpDB.SetSetting("custom_sub_domain", "custom.domain.com")
+		b4 := &Bot{
+			cfg: &config.Config{BackendURL: "https://api.backend.com:8443"},
+			db:  tmpDB,
+		}
+		link4 := b4.getSubscribeLink("token123")
+		expected4 := "https://custom.domain.com/v1/subscribe/config?token=token123"
+		if link4 != expected4 {
+			t.Errorf("case 4 got %q, want %q", link4, expected4)
+		}
 	}
 }
 

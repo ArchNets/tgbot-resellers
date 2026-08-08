@@ -432,3 +432,18 @@ func (c *Client) GetResellerSubscribeDomain(ctx context.Context) (*GetResellerSu
 	}
 	return &resp, nil
 }
+
+type UpdateResellerSubscribeDomainRequest struct {
+	SubscribeDomain string `json:"subscribe_domain,omitempty"`
+}
+
+func (c *Client) UpdateResellerSubscribeDomain(ctx context.Context, domain string) error {
+	req := UpdateResellerSubscribeDomainRequest{
+		SubscribeDomain: domain,
+	}
+	httpReq, err := c.newRequest(ctx, "PUT", "/v1/reseller/subscribe_domain", req)
+	if err != nil {
+		return err
+	}
+	return c.do(httpReq, nil)
+}

@@ -263,8 +263,10 @@ func parseFirstDomain(domainStr string) string {
 		d := strings.TrimSpace(fields[0])
 		d = strings.TrimPrefix(d, "https://")
 		d = strings.TrimPrefix(d, "http://")
-		d = strings.TrimSuffix(d, "/")
-		return d
+		if idx := strings.Index(d, "/"); idx != -1 {
+			d = d[:idx]
+		}
+		return strings.TrimSpace(d)
 	}
 	return ""
 }
@@ -275,11 +277,28 @@ func (b *Bot) getSubscribeLink(token string) string {
 
 	var domain, path string
 
-	// 1. Fetch site config for subscribe_path and fallback domain
+	// 1. Check local bot setting from SQLite (custom_sub_domain)
+	if b.db != nil {
+		if customDom, _ := b.db.GetSetting("custom_sub_domain"); strings.TrimSpace(customDom) != "" {
+			domain = parseFirstDomain(customDom)
+		}
+	}
+
+	// 2. Fetch reseller custom / effective domain from backend if not set locally
+	if domain == "" && b.client != nil {
+		resellerSubDom, err := b.client.GetResellerSubscribeDomain(ctx)
+		if err == nil && resellerSubDom != nil && resellerSubDom.EffectiveDomain != "" {
+			domain = parseFirstDomain(resellerSubDom.EffectiveDomain)
+		}
+	}
+
+	// 3. Fetch site config for subscribe_path and fallback domain
 	if b.siteConfigMgr != nil {
 		siteCfg := b.siteConfigMgr.GetSiteConfig(ctx, b.client)
 		if siteCfg != nil {
-			path = strings.TrimSpace(siteCfg.Subscribe.SubscribePath)
+			if path == "" {
+				path = strings.TrimSpace(siteCfg.Subscribe.SubscribePath)
+			}
 			if domain == "" {
 				domain = parseFirstDomain(siteCfg.Subscribe.ResellerDomain)
 			}
@@ -292,26 +311,12 @@ func (b *Bot) getSubscribeLink(token string) string {
 		}
 	}
 
-	// 2. Override domain with reseller custom domain / assigned generic domain if available
-	if b.client != nil {
-		resellerSubDom, err := b.client.GetResellerSubscribeDomain(ctx)
-		if err == nil && resellerSubDom != nil && resellerSubDom.EffectiveDomain != "" {
-			domain = parseFirstDomain(resellerSubDom.EffectiveDomain)
-		}
-	}
-
-	// 3. Fallback to client base URL
+	// 4. Fallback to client base URL / BackendURL host
 	if domain == "" && b.client != nil {
-		u, err := url.Parse(b.client.GetBaseURL())
-		if err == nil && u.Host != "" {
-			domain = u.Host
-		}
+		domain = parseFirstDomain(b.client.GetBaseURL())
 	}
 	if domain == "" && b.cfg != nil {
-		u, err := url.Parse(b.cfg.BackendURL)
-		if err == nil && u.Host != "" {
-			domain = u.Host
-		}
+		domain = parseFirstDomain(b.cfg.BackendURL)
 	}
 	if domain == "" {
 		domain = "panel.archnets.com"

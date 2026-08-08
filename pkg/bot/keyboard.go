@@ -47,13 +47,13 @@ func AdminMenuKeyboard(isOwner bool) tgbotapi.ReplyKeyboardMarkup {
 		),
 		tgbotapi.NewKeyboardButtonRow(
 			tgbotapi.NewKeyboardButton(BtnAdminTagSettings),
+		),
+		tgbotapi.NewKeyboardButtonRow(
 			tgbotapi.NewKeyboardButton(BtnAdminStaffSettings),
-		),
-		tgbotapi.NewKeyboardButtonRow(
 			tgbotapi.NewKeyboardButton(BtnAdminChannelGate),
-			tgbotapi.NewKeyboardButton(BtnAdminQRToggle),
 		),
 		tgbotapi.NewKeyboardButtonRow(
+			tgbotapi.NewKeyboardButton(BtnAdminQRToggle),
 			tgbotapi.NewKeyboardButton(BtnAdminReminderToggle),
 		),
 		tgbotapi.NewKeyboardButtonRow(
