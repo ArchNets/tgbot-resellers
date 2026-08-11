@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"reseller-bot/pkg/backend"
+
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
@@ -220,7 +222,70 @@ const (
 	MsgAdminSupportImgDeleted = `✅ تصویر پیام پشتیبانی با موفقیت حذف شد و از این پس پیام به‌صورت متنی ارسال خواهد شد.`
 
 	MsgGeneralError = `❌ متأسفانه خطایی در ارتباط با سرور رخ داده است. لطفاً بعداً تلاش کنید.`
+
+	MsgNoResellerSubscriptionError = `⚠️ *اشتراک نماینده یافت نشد*
+
+برای ارائه سرویس به کاربران در این ربات، اکانت نماینده شما باید دارای یک اشتراک/پکیج نمایندگی فعال باشد.
+لطفاً از طریق پنل مدیریت وب نمایندگی یک پکیج خریداری کنید.`
+
+	MsgNoPlansAvailable = `📦 *هیچ پلانی یافت نشد*
+
+در حال حاضر هیچ پلانی برای خرید وجود ندارد. لطفاً ابتدا از بخش مدیریت پنل ربات یا پنل نمایندگی، پلان‌های فروش خود را ایجاد نمایید.`
+
+	MsgInsufficientBalanceError = `⚠️ *موجودی کیف پول کافی نیست*
+
+موجودی کیف پول شما برای انجام این تراکنش کافی نمی‌باشد.
+لطفاً از منوی اصلی گزینه «💳 شارژ حساب» یا پنل مدیریت وب نمایندگی را انتخاب نمایید.`
+
+	MsgSubscribeOutOfStockError = `⚠️ *موجودی سرویس به پایان رسیده است*
+
+در حال حاضر ظرفیت این سرویس به پایان رسیده است. لطفاً بعداً تلاش کنید یا سرویس دیگری را انتخاب نمایید.`
+
+	MsgSubscribeBuyLimitError = `⚠️ *سقف مجاز خرید تکمیل شده است*
+
+شما به حداکثر سقف مجاز خرید برای این سرویس رسیده‌اید.`
+
+	MsgSubscribeExpiredError = `⚠️ *سرویس منقضی شده است*
+
+سرویس یا پکیج نمایندگی مورد نظر منقضی شده است.`
+
+	MsgUserDisabledError = `⛔ *حساب کاربری غیرفعال است*
+
+حساب کاربری شما مسدود یا غیرفعال شده است. لطفاً با پشتیبانی تماس بگیرید.`
+
+	MsgInvalidAPIKeyError = `🔑 *خطای کلید اتصال ربات*
+
+ارتباط ربات با سرور نمایندگی برقرار نشد (کلید API نماینده نامعتبر است). لطفاً تنظیمات RESELLER_API_KEY در ربات را بررسی کنید.`
 )
+
+func FormatBackendError(err error) string {
+	if err == nil {
+		return MsgGeneralError
+	}
+	errStr := err.Error()
+	if backend.IsErrorCode(err, 60002) || strings.Contains(errStr, "60002") || strings.Contains(errStr, "SubscribeNotAvailable") {
+		return MsgNoResellerSubscriptionError
+	}
+	if backend.IsErrorCode(err, 20005) || strings.Contains(errStr, "20005") || strings.Contains(errStr, "InsufficientBalance") {
+		return MsgInsufficientBalanceError
+	}
+	if backend.IsErrorCode(err, 60007) || strings.Contains(errStr, "60007") || strings.Contains(errStr, "SubscribeOutOfStock") {
+		return MsgSubscribeOutOfStockError
+	}
+	if backend.IsErrorCode(err, 60009) || strings.Contains(errStr, "60009") || strings.Contains(errStr, "SubscribeBuyLimit") {
+		return MsgSubscribeBuyLimitError
+	}
+	if backend.IsErrorCode(err, 60001) || strings.Contains(errStr, "60001") || strings.Contains(errStr, "SubscribeExpired") {
+		return MsgSubscribeExpiredError
+	}
+	if backend.IsErrorCode(err, 20004) || strings.Contains(errStr, "20004") || strings.Contains(errStr, "UserDisabled") {
+		return MsgUserDisabledError
+	}
+	if backend.IsErrorCode(err, 40005) || backend.IsErrorCode(err, 40003) || strings.Contains(errStr, "40005") || strings.Contains(errStr, "40003") {
+		return MsgInvalidAPIKeyError
+	}
+	return MsgGeneralError
+}
 
 var i18nFa = map[string]string{
 	"payments_unavailable":  "⚠️ در حال حاضر امکان پرداخت آنلاین و کارت به کارت فعال نیست. لطفاً بعداً تلاش کنید.",

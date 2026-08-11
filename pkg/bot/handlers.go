@@ -54,7 +54,13 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 		})
 		if err != nil {
 			log.Printf("Backend register error for %d: %v", chatID, err)
-			b.sendSimpleMessage(chatID, MsgGeneralError)
+			if backend.IsErrorCode(err, 60002) || strings.Contains(err.Error(), "60002") || strings.Contains(err.Error(), "SubscribeNotAvailable") {
+				msg := tgbotapi.NewMessage(chatID, MsgNoResellerSubscriptionError)
+				msg.ParseMode = tgbotapi.ModeMarkdown
+				b.api.Send(msg)
+			} else {
+				b.sendSimpleMessage(chatID, MsgGeneralError)
+			}
 			return
 		}
 
@@ -138,12 +144,14 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 		})
 		if err != nil {
 			log.Printf("Backend info fetch error: %v", err)
-			b.sendSimpleMessage(chatID, MsgGeneralError)
+			msg := tgbotapi.NewMessage(chatID, FormatBackendError(err))
+			msg.ParseMode = tgbotapi.ModeMarkdown
+			b.api.Send(msg)
 			return
 		}
 
 		rate := b.rateMgr.GetRate(ctx, b.client)
-		formattedBalance := FormatUserBalance(resp.Balance, rate)
+		formattedBalance := FormatUserBalance(getUserBalance(resp), rate)
 		text := fmt.Sprintf(MsgAccountInfo, chatID, resp.UserID, formattedBalance)
 		reply := tgbotapi.NewMessage(chatID, text)
 		reply.ParseMode = tgbotapi.ModeMarkdown
@@ -167,7 +175,7 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		card, err := b.client.GetPaymentCard(ctx)
+		card, err := b.client.GetPaymentCard(ctx, b.cfg.BotID)
 		if err != nil || card == nil || !card.Enabled || strings.TrimSpace(card.CardNumber) == "" {
 			b.sendSimpleMessage(chatID, Tr(getLang(msg.From), "payments_unavailable"))
 			return
@@ -522,7 +530,7 @@ func (b *Bot) handleStateMessage(msg *tgbotapi.Message, u *db.User, sess *Sessio
 				userRegisterResp, _ := b.client.RegisterUser(ctx, &backend.UserRegisterRequest{TelegramID: chatID})
 				var userBal int64
 				if userRegisterResp != nil {
-					userBal = userRegisterResp.Balance
+					userBal = getUserBalance(userRegisterResp)
 				}
 				apiResp, _ := b.client.GetResellerSubscribeList(ctx, 1, 100)
 				var planPrice int64
@@ -539,7 +547,9 @@ func (b *Bot) handleStateMessage(msg *tgbotapi.Message, u *db.User, sess *Sessio
 				return
 			}
 
-			b.sendSimpleMessage(chatID, Tr(getLang(msg.From), "purchase_failed_try_again"))
+			msg := tgbotapi.NewMessage(chatID, FormatBackendError(err))
+			msg.ParseMode = tgbotapi.ModeMarkdown
+			b.api.Send(msg)
 			return
 		}
 
@@ -1139,7 +1149,9 @@ func (b *Bot) renderSubscriptionsListPage(chatID int64, messageID int, page int,
 	resp, err := b.client.GetUserSubscriptions(ctx, u.UserID, page, pageSize)
 	if err != nil {
 		log.Printf("Failed to get user subscriptions for %d (page %d): %v", u.UserID, page, err)
-		b.sendSimpleMessage(chatID, MsgGeneralError)
+		msg := tgbotapi.NewMessage(chatID, FormatBackendError(err))
+		msg.ParseMode = tgbotapi.ModeMarkdown
+		b.api.Send(msg)
 		return
 	}
 
@@ -1205,7 +1217,13 @@ func (b *Bot) renderTagsMenu(chatID int64, messageID int) {
 	apiResp, err := b.client.GetResellerSubscribeList(ctx, 1, 100)
 	if err != nil {
 		log.Printf("Failed to get plans from backend: %v", err)
-		b.sendSimpleMessage(chatID, MsgGeneralError)
+		if backend.IsErrorCode(err, 60002) || strings.Contains(err.Error(), "60002") || strings.Contains(err.Error(), "SubscribeNotAvailable") {
+			msg := tgbotapi.NewMessage(chatID, MsgNoResellerSubscriptionError)
+			msg.ParseMode = tgbotapi.ModeMarkdown
+			b.api.Send(msg)
+		} else {
+			b.sendSimpleMessage(chatID, MsgGeneralError)
+		}
 		return
 	}
 
@@ -1227,7 +1245,9 @@ func (b *Bot) renderTagsMenu(chatID int64, messageID int) {
 	}
 
 	if len(plans) == 0 {
-		b.sendSimpleMessage(chatID, "⚠️ در حال حاضر هیچ پلانی تعریف نشده است. لطفاً بعداً تلاش کنید.")
+		msg := tgbotapi.NewMessage(chatID, MsgNoPlansAvailable)
+		msg.ParseMode = tgbotapi.ModeMarkdown
+		b.api.Send(msg)
 		return
 	}
 
@@ -1278,4 +1298,14 @@ func (b *Bot) renderTagsMenu(chatID int64, messageID int) {
 		msg.ReplyMarkup = kb
 		b.api.Send(msg)
 	}
+}
+
+func getUserBalance(resp *backend.UserRegisterResponse) int64 {
+	if resp == nil {
+		return 0
+	}
+	if resp.ResellerBalance > 0 || resp.Balance == 0 {
+		return resp.ResellerBalance
+	}
+	return resp.Balance
 }

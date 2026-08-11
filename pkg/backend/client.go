@@ -280,8 +280,19 @@ func (c *Client) GetUserSubscribeProfile(ctx context.Context, subscribeID, nodeI
 	}, nil
 }
 
-func (c *Client) GetPaymentCard(ctx context.Context) (*PaymentCard, error) {
-	httpReq, err := c.newRequest(ctx, "GET", "/v1/reseller/payment/card", nil)
+func (c *Client) GetPaymentCard(ctx context.Context, botID ...int64) (*PaymentCard, error) {
+	path := "/v1/reseller/payment/card"
+	var targetBotID int64
+	if len(botID) > 0 && botID[0] > 0 {
+		targetBotID = botID[0]
+	} else if c.botID > 0 {
+		targetBotID = c.botID
+	}
+	if targetBotID > 0 {
+		path = fmt.Sprintf("/v1/reseller/payment/card?bot_id=%d", targetBotID)
+	}
+
+	httpReq, err := c.newRequest(ctx, "GET", path, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -293,6 +304,9 @@ func (c *Client) GetPaymentCard(ctx context.Context) (*PaymentCard, error) {
 }
 
 func (c *Client) UpsertPaymentCard(ctx context.Context, card *PaymentCard) error {
+	if card.BotID == 0 && c.botID > 0 {
+		card.BotID = c.botID
+	}
 	httpReq, err := c.newRequest(ctx, "PUT", "/v1/reseller/payment/card", card)
 	if err != nil {
 		return err

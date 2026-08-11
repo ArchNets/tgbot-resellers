@@ -221,7 +221,7 @@ func (b *Bot) handleCallbackQuery(cb *tgbotapi.CallbackQuery) {
 			escapeMarkdown(selectedPlan.Name),
 			FormatMoney(selectedPlan.UnitPrice),
 			escapeMarkdown(selectedPlan.Description),
-			FormatUserBalance(userRegisterResp.Balance, rate),
+			FormatUserBalance(getUserBalance(userRegisterResp), rate),
 		)
 
 		editMsg := tgbotapi.NewEditMessageText(chatID, cb.Message.MessageID, text)
@@ -336,18 +336,19 @@ func (b *Bot) handleCallbackQuery(cb *tgbotapi.CallbackQuery) {
 		}
 
 		rate := b.rateMgr.GetRate(ctx, b.client)
+		userBal := getUserBalance(userRegisterResp)
 		var insufficient bool
 		if rate > 0 {
-			userBalanceToman := int64(float64(userRegisterResp.Balance) * rate / 100.0)
+			userBalanceToman := int64(float64(userBal) * rate / 100.0)
 			insufficient = userBalanceToman < selectedPlan.UnitPrice
 		} else {
-			insufficient = userRegisterResp.Balance <= 0
+			insufficient = userBal <= 0
 		}
 
 		if insufficient {
 			b.answerCallback(cb.ID, "موجودی کافی نیست.", true)
 			text := fmt.Sprintf(MsgInsufficientBalance,
-				FormatUserBalance(userRegisterResp.Balance, rate),
+				FormatUserBalance(userBal, rate),
 				FormatMoney(selectedPlan.UnitPrice),
 			)
 			editMsg := tgbotapi.NewEditMessageText(chatID, cb.Message.MessageID, text)

@@ -10,10 +10,11 @@ type UserRegisterRequest struct {
 }
 
 type UserRegisterResponse struct {
-	UserID     int64  `json:"user_id"`
-	Balance    int64  `json:"balance"`
-	Lang       string `json:"lang"`
-	CreatedNew bool   `json:"created_new"`
+	UserID          int64  `json:"user_id"`
+	Balance         int64  `json:"balance"`
+	ResellerBalance int64  `json:"reseller_balance"`
+	Lang            string `json:"lang"`
+	CreatedNew      bool   `json:"created_new"`
 }
 
 type BalanceUpdateRequest struct {
@@ -197,6 +198,7 @@ type PaymentCard struct {
 	BankName     string `json:"bank_name"`
 	Enabled      bool   `json:"enabled"`
 	Instructions string `json:"instructions"`
+	BotID        int64  `json:"bot_id,omitempty"`
 }
 
 type CreateRechargeRequest struct {
