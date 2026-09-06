@@ -610,6 +610,12 @@ func (b *Bot) handleStateMessage(msg *tgbotapi.Message, u *db.User, sess *Sessio
 			return
 		}
 
+		const maxTopupIRT int64 = 25000000 // Default 25 Million IRT / Toman
+		if amount > maxTopupIRT {
+			b.sendSimpleMessage(chatID, fmt.Sprintf("⚠️ مبلغ وارد شده بیشتر از حداکثر سقف مجاز افزایش موجودی (%s تومان) است. لطفاً مبلغ کمتری وارد کنید.", FormatMoney(maxTopupIRT)))
+			return
+		}
+
 		b.session.SetPendingAmount(chatID, amount)
 		b.session.SetState(chatID, StateAwaitingReceipt)
 
@@ -661,7 +667,7 @@ func (b *Bot) handleStateMessage(msg *tgbotapi.Message, u *db.User, sess *Sessio
 				return
 			}
 			log.Printf("Failed to create recharge order on backend: %v", err)
-			b.sendSimpleMessage(chatID, MsgGeneralError)
+			b.sendSimpleMessage(chatID, FormatBackendError(err))
 			b.session.Clear(chatID)
 			return
 		}

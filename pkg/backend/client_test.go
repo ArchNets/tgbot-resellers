@@ -123,3 +123,39 @@ func TestUpdateUserBalance(t *testing.T) {
 		t.Fatalf("UpdateUserBalance failed: %v", err)
 	}
 }
+
+func TestGetUserSubscriptions_BotIDForwarding(t *testing.T) {
+	var requestedPath string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestedPath = r.URL.RequestURI()
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"code": 200, "msg": "success", "data": {"total": 1, "list": [{"id": 1, "subscribe_id": 100, "reseller_subscription_id": 50, "subscribe": {"name": "Plan A", "bot_id": 10}}]}}`))
+	}))
+	defer server.Close()
+
+	// Case 1: Client with BotID = 10
+	client10 := NewClient(server.URL, "rn_test_key", nil, false, 10)
+	resp, err := client10.GetUserSubscriptions(context.Background(), 123, 1, 10)
+	if err != nil {
+		t.Fatalf("GetUserSubscriptions failed: %v", err)
+	}
+	expectedPath := "/v1/reseller/user/subscribe?user_id=123&page=1&size=10&bot_id=10"
+	if requestedPath != expectedPath {
+		t.Errorf("Expected path %q, got %q", expectedPath, requestedPath)
+	}
+	if resp.Total != 1 || resp.List[0].Subscribe.BotID != 10 || resp.List[0].ResellerSubscriptionID != 50 {
+		t.Errorf("Unexpected response content: %+v", resp)
+	}
+
+	// Case 2: Client with BotID = 0 (Main bot mode)
+	client0 := NewClient(server.URL, "rn_test_key", nil, false)
+	_, err = client0.GetUserSubscriptions(context.Background(), 123, 1, 10)
+	if err != nil {
+		t.Fatalf("GetUserSubscriptions failed: %v", err)
+	}
+	expectedPath0 := "/v1/reseller/user/subscribe?user_id=123&page=1&size=10"
+	if requestedPath != expectedPath0 {
+		t.Errorf("Expected path %q, got %q", expectedPath0, requestedPath)
+	}
+}

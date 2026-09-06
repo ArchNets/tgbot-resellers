@@ -188,8 +188,15 @@ func (c *Client) CreateSubscription(ctx context.Context, req *SubscribeRequest) 
 	return &resp, nil
 }
 
-func (c *Client) GetUserSubscriptions(ctx context.Context, userID int64, page, size int) (*SubscriptionListResponse, error) {
+func (c *Client) GetUserSubscriptions(ctx context.Context, userID int64, page, size int, botID ...int64) (*SubscriptionListResponse, error) {
+	targetBotID := c.botID
+	if len(botID) > 0 && botID[0] > 0 {
+		targetBotID = botID[0]
+	}
 	path := fmt.Sprintf("/v1/reseller/user/subscribe?user_id=%d&page=%d&size=%d", userID, page, size)
+	if targetBotID > 0 {
+		path = fmt.Sprintf("%s&bot_id=%d", path, targetBotID)
+	}
 	httpReq, err := c.newRequest(ctx, "GET", path, nil)
 	if err != nil {
 		return nil, err

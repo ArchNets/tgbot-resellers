@@ -284,6 +284,9 @@ func FormatBackendError(err error) string {
 	if backend.IsErrorCode(err, 40005) || backend.IsErrorCode(err, 40003) || strings.Contains(errStr, "40005") || strings.Contains(errStr, "40003") {
 		return MsgInvalidAPIKeyError
 	}
+	if strings.Contains(errStr, "exceeds maximum") || strings.Contains(errStr, "exceeds maximum allowed limit") {
+		return "⚠️ *مبلغ غیرمجاز*\n\nمبلغ درخواستی بیشتر از حداکثر سقف مجاز افزایش موجودی می‌باشد."
+	}
 	return MsgGeneralError
 }
 

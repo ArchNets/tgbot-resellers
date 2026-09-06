@@ -185,7 +185,7 @@ func (b *Bot) checkExpiryReminders(ctx context.Context) {
 
 		userObj := &tgbotapi.User{ID: u.TelegramID}
 		for _, sub := range subs.List {
-			if sub.ExpireTime <= 0 {
+			if !b.isSubscriptionEligibleForReminder(&sub) {
 				continue
 			}
 
@@ -207,6 +207,32 @@ func (b *Bot) checkExpiryReminders(ctx context.Context) {
 			}
 		}
 	}
+}
+
+func (b *Bot) isSubscriptionEligibleForReminder(sub *backend.SubscriptionItem) bool {
+	if sub.ExpireTime <= 0 {
+		return false
+	}
+
+	// Bot ownership verification:
+	// If this bot instance has a specific BotID configured (> 0):
+	// 1. If the subscription plan has BotID set (> 0), it MUST match this bot.
+	// 2. A reseller bot must never notify for a direct main platform subscription (ResellerSubscriptionID == 0).
+	if b.cfg != nil && b.cfg.BotID > 0 {
+		if sub.Subscribe.BotID > 0 && sub.Subscribe.BotID != b.cfg.BotID {
+			return false
+		}
+		if sub.ResellerSubscriptionID == 0 && sub.Subscribe.ResellerSubscriptionID == 0 {
+			return false
+		}
+	} else if b.cfg != nil && b.cfg.BotID == 0 {
+		// If this bot instance is configured as the main bot (BotID == 0):
+		// It must only notify for main platform direct subscriptions (not reseller subscriptions).
+		if sub.ResellerSubscriptionID > 0 || sub.Subscribe.ResellerSubscriptionID > 0 || sub.Subscribe.BotID > 0 {
+			return false
+		}
+	}
+	return true
 }
 
 type ProtocolSupport struct {

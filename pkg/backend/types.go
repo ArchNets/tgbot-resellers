@@ -49,26 +49,29 @@ type SubscribeResponse struct {
 }
 
 type SubscriptionPlan struct {
-	Name        string   `json:"name"`
-	DeviceLimit int      `json:"device_limit"`
-	SpeedLimit  int64    `json:"speed_limit"`
-	NodeTags    []string `json:"node_tags"`
+	Name                   string   `json:"name"`
+	DeviceLimit            int      `json:"device_limit"`
+	SpeedLimit             int64    `json:"speed_limit"`
+	NodeTags               []string `json:"node_tags"`
+	BotID                  int64    `json:"bot_id,omitempty"`
+	ResellerSubscriptionID int64    `json:"reseller_subscription_id,omitempty"`
 }
 
 type SubscriptionItem struct {
-	ID          int64            `json:"id"`
-	SubscribeID int64            `json:"subscribe_id"`
-	CustomName  string           `json:"custom_name"`
-	Token       string           `json:"token"`
-	Short       string           `json:"short"`
-	Status      int              `json:"status"`
-	Traffic     int64            `json:"traffic"`
-	Upload      int64            `json:"upload"`
-	Download    int64            `json:"download"`
-	StartTime   int64            `json:"start_time"`
-	ExpireTime  int64            `json:"expire_time"`
-	OnlineCount int              `json:"online_count"`
-	Subscribe   SubscriptionPlan `json:"subscribe"`
+	ID                     int64            `json:"id"`
+	SubscribeID            int64            `json:"subscribe_id"`
+	CustomName             string           `json:"custom_name"`
+	Token                  string           `json:"token"`
+	Short                  string           `json:"short"`
+	Status                 int              `json:"status"`
+	Traffic                int64            `json:"traffic"`
+	Upload                 int64            `json:"upload"`
+	Download               int64            `json:"download"`
+	StartTime              int64            `json:"start_time"`
+	ExpireTime             int64            `json:"expire_time"`
+	OnlineCount            int              `json:"online_count"`
+	ResellerSubscriptionID int64            `json:"reseller_subscription_id,omitempty"`
+	Subscribe              SubscriptionPlan `json:"subscribe"`
 }
 
 func (s *SubscriptionItem) GetName() string {
