@@ -266,4 +266,47 @@ type SiteConfigData struct {
 	} `json:"site"`
 }
 
+type BotStaffItem struct {
+	TelegramID  int64  `json:"telegram_id"`
+	DisplayName string `json:"display_name"`
+	AddedAt     int64  `json:"added_at"`
+}
+
+type BotConfig struct {
+	BotID            int64             `json:"bot_id"`
+	WelcomeText      string            `json:"welcome_text"`
+	WelcomeImage     string            `json:"welcome_image"`
+	SupportText      string            `json:"support_text"`
+	SupportImage     string            `json:"support_image"`
+	RequiredChannel  string            `json:"required_channel"`
+	QREnabled        bool              `json:"qr_enabled"`
+	RemindersEnabled bool              `json:"reminders_enabled"`
+	TagMappings      map[string]string `json:"tag_mappings"`
+	StaffList        []BotStaffItem    `json:"staff_list"`
+}
+
+type BotConfigUpdate struct {
+	BotID            *int64            `json:"bot_id,omitempty"`
+	WelcomeText      *string           `json:"welcome_text,omitempty"`
+	WelcomeImage     *string           `json:"welcome_image,omitempty"`
+	SupportText      *string           `json:"support_text,omitempty"`
+	SupportImage     *string           `json:"support_image,omitempty"`
+	RequiredChannel  *string           `json:"required_channel,omitempty"`
+	QREnabled        *bool             `json:"qr_enabled,omitempty"`
+	RemindersEnabled *bool             `json:"reminders_enabled,omitempty"`
+	TagMappings      map[string]string `json:"tag_mappings,omitempty"`
+	StaffList        []BotStaffItem    `json:"staff_list,omitempty"`
+}
+
+type BotUserItem struct {
+	TelegramID int64 `json:"telegram_id"`
+	UserID     int64 `json:"user_id"`
+	CreatedAt  int64 `json:"created_at"`
+}
+
+type GetBotUsersResponse struct {
+	List []BotUserItem `json:"list"`
+}
+
+
 

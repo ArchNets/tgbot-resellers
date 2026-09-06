@@ -260,13 +260,17 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 			return
 		}
 		currentQR, _ := b.db.GetSetting("qr_enabled")
+		var qrOn bool
 		if currentQR == "off" {
 			_ = b.db.SetSetting("qr_enabled", "on")
 			b.sendSimpleMessage(chatID, Tr(getLang(msg.From), "qr_toggled_on"))
+			qrOn = true
 		} else {
 			_ = b.db.SetSetting("qr_enabled", "off")
 			b.sendSimpleMessage(chatID, Tr(getLang(msg.From), "qr_toggled_off"))
+			qrOn = false
 		}
+		b.pushBotConfigToBackend(&backend.BotConfigUpdate{QREnabled: &qrOn})
 
 	case BtnAdminReminderToggle:
 		if !isOwner {
@@ -274,13 +278,17 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 			return
 		}
 		currentRem, _ := b.db.GetSetting("reminders_enabled")
+		var remOn bool
 		if currentRem == "off" {
 			_ = b.db.SetSetting("reminders_enabled", "on")
 			b.sendSimpleMessage(chatID, Tr(getLang(msg.From), "reminders_toggled_on"))
+			remOn = true
 		} else {
 			_ = b.db.SetSetting("reminders_enabled", "off")
 			b.sendSimpleMessage(chatID, Tr(getLang(msg.From), "reminders_toggled_off"))
+			remOn = false
 		}
+		b.pushBotConfigToBackend(&backend.BotConfigUpdate{RemindersEnabled: &remOn})
 
 	case BtnAdminPlansSettings, "📦 مدیریت پلانها", "📦 مدیریت پلان ها":
 		if !isAdmin {
@@ -343,6 +351,8 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 			return
 		}
 		_ = b.db.SetSetting("welcome_image", "")
+		emptyWelcomeImg := ""
+		b.pushBotConfigToBackend(&backend.BotConfigUpdate{WelcomeImage: &emptyWelcomeImg})
 		reply := tgbotapi.NewMessage(chatID, "✅ تصویر پیام خوش‌آمدگویی با موفقیت حذف شد.")
 		reply.ReplyMarkup = AdminWelcomeSettingsKeyboard()
 		b.api.Send(reply)
@@ -383,6 +393,8 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 			return
 		}
 		_ = b.db.SetSetting("support_image", "")
+		emptySupportImg := ""
+		b.pushBotConfigToBackend(&backend.BotConfigUpdate{SupportImage: &emptySupportImg})
 		reply := tgbotapi.NewMessage(chatID, MsgAdminSupportImgDeleted)
 		reply.ReplyMarkup = AdminSupportSettingsKeyboard()
 		b.api.Send(reply)
@@ -905,6 +917,7 @@ func (b *Bot) handleStateMessage(msg *tgbotapi.Message, u *db.User, sess *Sessio
 			b.sendSimpleMessage(chatID, MsgGeneralError)
 		} else {
 			b.sendSimpleMessage(chatID, Tr(getLang(msg.From), "staff_added_success"))
+			b.syncStaffToBackend()
 		}
 		b.session.Clear(chatID)
 
@@ -917,6 +930,8 @@ func (b *Bot) handleStateMessage(msg *tgbotapi.Message, u *db.User, sess *Sessio
 		input := strings.TrimSpace(msg.Text)
 		if strings.EqualFold(input, "off") || input == "0" || input == "none" {
 			_ = b.db.SetSetting("required_channel", "")
+			emptyChan := ""
+			b.pushBotConfigToBackend(&backend.BotConfigUpdate{RequiredChannel: &emptyChan})
 			b.sendSimpleMessage(chatID, Tr(getLang(msg.From), "channel_cleared_success"))
 			b.session.Clear(chatID)
 			return
@@ -939,6 +954,7 @@ func (b *Bot) handleStateMessage(msg *tgbotapi.Message, u *db.User, sess *Sessio
 		}
 
 		_ = b.db.SetSetting("required_channel", input)
+		b.pushBotConfigToBackend(&backend.BotConfigUpdate{RequiredChannel: &input})
 		b.sendSimpleMessage(chatID, Tr(getLang(msg.From), "channel_updated_success"))
 		b.session.Clear(chatID)
 
@@ -1046,6 +1062,7 @@ func (b *Bot) handleStateMessage(msg *tgbotapi.Message, u *db.User, sess *Sessio
 		}
 
 		_ = b.db.SetSetting("welcome_text", txt)
+		b.pushBotConfigToBackend(&backend.BotConfigUpdate{WelcomeText: &txt})
 
 		b.session.Clear(chatID)
 		reply := tgbotapi.NewMessage(chatID, MsgAdminWelcomeTextUpdated)
@@ -1064,6 +1081,7 @@ func (b *Bot) handleStateMessage(msg *tgbotapi.Message, u *db.User, sess *Sessio
 
 		photo := msg.Photo[len(msg.Photo)-1]
 		_ = b.db.SetSetting("welcome_image", photo.FileID)
+		b.pushBotConfigToBackend(&backend.BotConfigUpdate{WelcomeImage: &photo.FileID})
 
 		b.session.Clear(chatID)
 		reply := tgbotapi.NewMessage(chatID, MsgAdminWelcomeImgUpdated)
@@ -1082,6 +1100,7 @@ func (b *Bot) handleStateMessage(msg *tgbotapi.Message, u *db.User, sess *Sessio
 		}
 
 		_ = b.db.SetSetting("support_text", txt)
+		b.pushBotConfigToBackend(&backend.BotConfigUpdate{SupportText: &txt})
 
 		b.session.Clear(chatID)
 		reply := tgbotapi.NewMessage(chatID, MsgAdminSupportTextUpdated)
@@ -1100,6 +1119,7 @@ func (b *Bot) handleStateMessage(msg *tgbotapi.Message, u *db.User, sess *Sessio
 
 		photo := msg.Photo[len(msg.Photo)-1]
 		_ = b.db.SetSetting("support_image", photo.FileID)
+		b.pushBotConfigToBackend(&backend.BotConfigUpdate{SupportImage: &photo.FileID})
 
 		b.session.Clear(chatID)
 		reply := tgbotapi.NewMessage(chatID, MsgAdminSupportImgUpdated)
@@ -1123,6 +1143,9 @@ func (b *Bot) handleStateMessage(msg *tgbotapi.Message, u *db.User, sess *Sessio
 			b.sendSimpleMessage(chatID, MsgGeneralError)
 		} else {
 			b.sendSimpleMessage(chatID, "✅ نام نمایشی با موفقیت ذخیره شد.")
+			if allTags, err := b.db.GetAllTagMappings(); err == nil {
+				b.pushBotConfigToBackend(&backend.BotConfigUpdate{TagMappings: allTags})
+			}
 		}
 
 		b.session.Clear(chatID)

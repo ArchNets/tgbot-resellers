@@ -52,8 +52,10 @@ func NewBot(cfg *config.Config, database *db.DB, client *backend.Client) (*Bot, 
 func (b *Bot) Start(ctx context.Context) {
 	log.Printf("Authorized on account %s", b.api.Self.UserName)
 
-	// Sync admin IDs from server on startup
+	// Sync admin IDs and bot config from server on startup
 	b.syncAdminIDsFromServer(ctx)
+	b.syncBotConfigFromServer(ctx)
+	b.syncBotUsersFromServer(ctx)
 
 	go b.siteConfigMgr.GetSiteConfig(ctx, b.client)
 	go b.startPoller(ctx)
@@ -88,9 +90,10 @@ func (b *Bot) startPoller(ctx context.Context) {
 		case <-ticker.C:
 			b.syncRechargeStatus(ctx)
 
-			// Sync admin IDs from server every 5 minutes
+			// Sync admin IDs and bot config from server every 5 minutes
 			if time.Since(lastAdminSync) >= 5*time.Minute {
 				b.syncAdminIDsFromServer(ctx)
+				b.syncBotConfigFromServer(ctx)
 				lastAdminSync = time.Now()
 			}
 
@@ -494,6 +497,119 @@ func (b *Bot) syncAdminIDsFromServer(ctx context.Context) {
 	b.cfg.AdminChatIDs = newIDs
 	b.persistAdminIDs()
 	log.Printf("[syncAdminIDs] Synced %d admin IDs from server", len(newIDs))
+}
+
+func (b *Bot) syncBotConfigFromServer(ctx context.Context) {
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+
+	cfg, err := b.client.GetBotConfig(ctx)
+	if err != nil {
+		log.Printf("[syncBotConfig] Failed to fetch bot config from server: %v", err)
+		return
+	}
+	if cfg == nil {
+		return
+	}
+
+	// 1. Text and media settings
+	if cfg.WelcomeText != "" {
+		_ = b.db.SetSetting("welcome_text", cfg.WelcomeText)
+	}
+	if cfg.WelcomeImage != "" {
+		_ = b.db.SetSetting("welcome_image", cfg.WelcomeImage)
+	}
+	if cfg.SupportText != "" {
+		_ = b.db.SetSetting("support_text", cfg.SupportText)
+	}
+	if cfg.SupportImage != "" {
+		_ = b.db.SetSetting("support_image", cfg.SupportImage)
+	}
+	if cfg.RequiredChannel != "" {
+		_ = b.db.SetSetting("required_channel", cfg.RequiredChannel)
+	}
+	if cfg.QREnabled {
+		_ = b.db.SetSetting("qr_enabled", "on")
+	} else {
+		_ = b.db.SetSetting("qr_enabled", "off")
+	}
+	if cfg.RemindersEnabled {
+		_ = b.db.SetSetting("reminders_enabled", "on")
+	} else {
+		_ = b.db.SetSetting("reminders_enabled", "off")
+	}
+
+	// 2. Tag mappings
+	if cfg.TagMappings != nil {
+		for orig, disp := range cfg.TagMappings {
+			_ = b.db.SetTagMapping(orig, disp)
+		}
+	}
+
+	// 3. Staff list
+	if cfg.StaffList != nil {
+		for _, s := range cfg.StaffList {
+			_ = b.db.AddStaff(s.TelegramID, s.DisplayName)
+		}
+	}
+
+	log.Printf("[syncBotConfig] Successfully synced bot config from server (channel: %s, staff: %d, tags: %d)",
+		cfg.RequiredChannel, len(cfg.StaffList), len(cfg.TagMappings))
+}
+
+func (b *Bot) syncBotUsersFromServer(ctx context.Context) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	users, err := b.client.GetBotUsers(ctx)
+	if err != nil {
+		log.Printf("[syncBotUsers] Failed to fetch bot users from server: %v", err)
+		return
+	}
+
+	synced := 0
+	for _, u := range users {
+		if u.TelegramID <= 0 || u.UserID <= 0 {
+			continue
+		}
+		err := b.db.SaveUser(&db.User{
+			TelegramID: u.TelegramID,
+			UserID:     u.UserID,
+			CreatedAt:  u.CreatedAt,
+		})
+		if err == nil {
+			synced++
+		}
+	}
+
+	log.Printf("[syncBotUsers] Successfully rehydrated %d users from backend", synced)
+}
+
+func (b *Bot) pushBotConfigToBackend(update *backend.BotConfigUpdate) {
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		_, err := b.client.UpdateBotConfig(ctx, update)
+		if err != nil {
+			log.Printf("[pushBotConfigToBackend] Failed to push update to backend: %v", err)
+		}
+	}()
+}
+
+func (b *Bot) syncStaffToBackend() {
+	staffList, err := b.db.GetStaffList()
+	if err != nil {
+		return
+	}
+	items := make([]backend.BotStaffItem, 0, len(staffList))
+	for _, s := range staffList {
+		items = append(items, backend.BotStaffItem{
+			TelegramID:  s.TelegramID,
+			DisplayName: s.DisplayName,
+			AddedAt:     s.AddedAt,
+		})
+	}
+	b.pushBotConfigToBackend(&backend.BotConfigUpdate{StaffList: items})
 }
 
 func (b *Bot) isAdmin(chatID int64) bool {

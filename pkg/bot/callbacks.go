@@ -611,6 +611,41 @@ func (b *Bot) handleCallbackQuery(cb *tgbotapi.CallbackQuery) {
 		b.session.SetTempPlanName(chatID, tag) // TempPlanName stores original tag name
 		return
 	}
+
+	if data == "staff_noop" {
+		b.answerCallback(cb.ID, "", false)
+		return
+	}
+
+	if data == "staff_add" {
+		if !b.isOwner(chatID) {
+			b.answerCallback(cb.ID, Tr(getLang(cb.From), "staff_owner_only"), true)
+			return
+		}
+		b.answerCallback(cb.ID, "", false)
+		b.session.SetState(chatID, StateAdminAwaitingStaffAdd)
+		b.sendSimpleMessage(chatID, Tr(getLang(cb.From), "awaiting_staff_add"))
+		return
+	}
+
+	if strings.HasPrefix(data, "staff_remove_") {
+		if !b.isOwner(chatID) {
+			b.answerCallback(cb.ID, Tr(getLang(cb.From), "staff_owner_only"), true)
+			return
+		}
+		idStr := strings.TrimPrefix(data, "staff_remove_")
+		targetID, _ := strconv.ParseInt(idStr, 10, 64)
+		if targetID > 0 {
+			_ = b.db.RemoveStaff(targetID)
+			b.syncStaffToBackend()
+		}
+		b.answerCallback(cb.ID, Tr(getLang(cb.From), "staff_removed_success"), false)
+
+		staffList, _ := b.db.GetStaffList()
+		editMsg := tgbotapi.NewEditMessageReplyMarkup(chatID, cb.Message.MessageID, StaffInlineKeyboard(staffList))
+		b.api.Send(editMsg)
+		return
+	}
 }
 
 func (b *Bot) answerCallback(callbackQueryID string, text string, showAlert bool) {

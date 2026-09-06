@@ -159,3 +159,106 @@ func TestGetUserSubscriptions_BotIDForwarding(t *testing.T) {
 		t.Errorf("Expected path %q, got %q", expectedPath0, requestedPath)
 	}
 }
+
+func TestGetBotConfig(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/reseller/hosting/bots/5/config" {
+			t.Errorf("Expected path /v1/reseller/hosting/bots/5/config, got %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{
+			"code": 200,
+			"msg": "success",
+			"data": {
+				"bot_id": 5,
+				"welcome_text": "Hello World",
+				"welcome_image": "img123",
+				"support_text": "Help",
+				"support_image": "img456",
+				"required_channel": "@mychan",
+				"qr_enabled": true,
+				"reminders_enabled": false,
+				"tag_mappings": {"DE": "Germany"},
+				"staff_list": [{"telegram_id": 1234, "display_name": "Admin", "added_at": 1700000000}]
+			}
+		}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "test_key", nil, false, 5)
+	cfg, err := client.GetBotConfig(context.Background())
+	if err != nil {
+		t.Fatalf("GetBotConfig failed: %v", err)
+	}
+	if cfg.BotID != 5 || cfg.WelcomeText != "Hello World" || cfg.TagMappings["DE"] != "Germany" {
+		t.Errorf("Unexpected config: %+v", cfg)
+	}
+	if !cfg.QREnabled || cfg.RemindersEnabled {
+		t.Errorf("Unexpected toggles: qr=%v, rem=%v", cfg.QREnabled, cfg.RemindersEnabled)
+	}
+}
+
+func TestUpdateBotConfig(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "PUT" {
+			t.Errorf("Expected PUT, got %s", r.Method)
+		}
+		if r.URL.Path != "/v1/reseller/hosting/bots/5/config" {
+			t.Errorf("Expected path /v1/reseller/hosting/bots/5/config, got %s", r.URL.Path)
+		}
+		var req BotConfigUpdate
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Fatal("Failed to decode body")
+		}
+		if req.WelcomeText == nil || *req.WelcomeText != "Updated Text" {
+			t.Errorf("Expected welcome_text 'Updated Text', got %v", req.WelcomeText)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"code": 200, "msg": "success", "data": {"bot_id": 5, "welcome_text": "Updated Text"}}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "test_key", nil, false, 5)
+	newTxt := "Updated Text"
+	resp, err := client.UpdateBotConfig(context.Background(), &BotConfigUpdate{WelcomeText: &newTxt})
+	if err != nil {
+		t.Fatalf("UpdateBotConfig failed: %v", err)
+	}
+	if resp.WelcomeText != "Updated Text" {
+		t.Errorf("Unexpected response: %+v", resp)
+	}
+}
+
+func TestGetBotUsers(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/reseller/hosting/bots/5/users" {
+			t.Errorf("Expected path /v1/reseller/hosting/bots/5/users, got %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{
+			"code": 200,
+			"msg": "success",
+			"data": {
+				"list": [
+					{"telegram_id": 111, "user_id": 10, "created_at": 1700000000},
+					{"telegram_id": 222, "user_id": 20, "created_at": 1700001000}
+				]
+			}
+		}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "test_key", nil, false, 5)
+	users, err := client.GetBotUsers(context.Background())
+	if err != nil {
+		t.Fatalf("GetBotUsers failed: %v", err)
+	}
+	if len(users) != 2 || users[0].TelegramID != 111 || users[1].UserID != 20 {
+		t.Errorf("Unexpected users list: %+v", users)
+	}
+}
+

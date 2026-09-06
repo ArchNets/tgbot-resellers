@@ -468,3 +468,65 @@ func (c *Client) UpdateResellerSubscribeDomain(ctx context.Context, domain strin
 	}
 	return c.do(httpReq, nil)
 }
+
+func (c *Client) GetBotConfig(ctx context.Context, botID ...int64) (*BotConfig, error) {
+	path := "/v1/reseller/hosting/bot/config"
+	targetBotID := c.botID
+	if len(botID) > 0 && botID[0] > 0 {
+		targetBotID = botID[0]
+	}
+	if targetBotID > 0 {
+		path = fmt.Sprintf("/v1/reseller/hosting/bots/%d/config", targetBotID)
+	}
+
+	httpReq, err := c.newRequest(ctx, "GET", path, nil)
+	if err != nil {
+		return nil, err
+	}
+	var resp BotConfig
+	if err := c.do(httpReq, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+func (c *Client) UpdateBotConfig(ctx context.Context, cfg *BotConfigUpdate) (*BotConfig, error) {
+	path := "/v1/reseller/hosting/bot/config"
+	if cfg != nil && cfg.BotID != nil && *cfg.BotID > 0 {
+		path = fmt.Sprintf("/v1/reseller/hosting/bots/%d/config", *cfg.BotID)
+	} else if c.botID > 0 {
+		path = fmt.Sprintf("/v1/reseller/hosting/bots/%d/config", c.botID)
+	}
+
+	httpReq, err := c.newRequest(ctx, "PUT", path, cfg)
+	if err != nil {
+		return nil, err
+	}
+	var resp BotConfig
+	if err := c.do(httpReq, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+func (c *Client) GetBotUsers(ctx context.Context, botID ...int64) ([]BotUserItem, error) {
+	path := "/v1/reseller/hosting/bot/users"
+	targetBotID := c.botID
+	if len(botID) > 0 && botID[0] > 0 {
+		targetBotID = botID[0]
+	}
+	if targetBotID > 0 {
+		path = fmt.Sprintf("/v1/reseller/hosting/bots/%d/users", targetBotID)
+	}
+
+	httpReq, err := c.newRequest(ctx, "GET", path, nil)
+	if err != nil {
+		return nil, err
+	}
+	var resp GetBotUsersResponse
+	if err := c.do(httpReq, &resp); err != nil {
+		return nil, err
+	}
+	return resp.List, nil
+}
+
