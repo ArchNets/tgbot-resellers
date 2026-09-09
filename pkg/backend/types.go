@@ -308,5 +308,35 @@ type GetBotUsersResponse struct {
 	List []BotUserItem `json:"list"`
 }
 
+type PaymentMethodItem struct {
+	ID          int64                  `json:"id"`
+	Name        string                 `json:"name"`
+	Platform    string                 `json:"platform"`
+	Description string                 `json:"description"`
+	Icon        string                 `json:"icon"`
+	Domain      string                 `json:"domain"`
+	Config      map[string]interface{} `json:"config"`
+	FeeMode     uint                   `json:"fee_mode"`
+	FeePercent  int64                  `json:"fee_percent"`
+	FeeAmount   int64                  `json:"fee_amount"`
+	Enable      bool                   `json:"enable"`
+	Sort        int                    `json:"sort"`
+}
 
+type PaymentMethodListResponse struct {
+	Total int64               `json:"total"`
+	List  []PaymentMethodItem `json:"list"`
+}
 
+type CustomerCheckoutRequest struct {
+	UserID    int64  `json:"user_id"`
+	PaymentID int64  `json:"payment_id"`
+	Amount    int64  `json:"amount"`
+	ReturnURL string `json:"return_url,omitempty"`
+}
+
+type CustomerCheckoutResponse struct {
+	OrderNo     string `json:"order_no"`
+	CheckoutURL string `json:"checkout_url"`
+	Platform    string `json:"platform"`
+}

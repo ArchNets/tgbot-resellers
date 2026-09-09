@@ -27,22 +27,26 @@ const (
 	StateAdminAwaitingSupportImage    UserState = "admin_awaiting_support_image"
 	StateAdminAwaitingTagDisplayName  UserState = "admin_awaiting_tag_display_name"
 	StateAwaitingSubCustomName        UserState = "awaiting_sub_custom_name"
+	StateAwaitingGatewayAmount        UserState = "awaiting_gw_amount"
 )
 
 type Session struct {
-	State               UserState
-	PendingAmount       int64
-	TempCardNumber      string
-	TempCardOwner       string
-	TempBankName        string
-	TempInstructions    string
-	RejectOrderID       int64
-	TempPlanSubscribeID int
-	TempPlanName        string
-	TempPlanPrice       int64
-	PurchasingPlanID    int64
-	PurchasingPlanName  string
-	PurchasingUnitTime  string
+	State                   UserState
+	PendingAmount           int64
+	TempCardNumber          string
+	TempCardOwner           string
+	TempBankName            string
+	TempInstructions        string
+	RejectOrderID           int64
+	TempPlanSubscribeID     int
+	TempPlanName            string
+	TempPlanPrice           int64
+	PurchasingPlanID        int64
+	PurchasingPlanName      string
+	PurchasingUnitTime      string
+	SelectedPaymentID       int64
+	SelectedPaymentName     string
+	SelectedPaymentPlatform string
 }
 
 type SessionManager struct {
@@ -206,6 +210,19 @@ func (s *SessionManager) SetPurchasingPlan(telegramID int64, planID int64, planN
 	sess.PurchasingPlanID = planID
 	sess.PurchasingPlanName = planName
 	sess.PurchasingUnitTime = unitTime
+}
+
+func (s *SessionManager) SetSelectedPayment(telegramID int64, paymentID int64, name, platform string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	sess, exists := s.sessions[telegramID]
+	if !exists {
+		sess = &Session{}
+		s.sessions[telegramID] = sess
+	}
+	sess.SelectedPaymentID = paymentID
+	sess.SelectedPaymentName = name
+	sess.SelectedPaymentPlatform = platform
 }
 
 func (s *SessionManager) Clear(telegramID int64) {

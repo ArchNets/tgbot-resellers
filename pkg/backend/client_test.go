@@ -262,3 +262,89 @@ func TestGetBotUsers(t *testing.T) {
 	}
 }
 
+func TestGetPaymentMethods(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			t.Errorf("Expected GET method, got %s", r.Method)
+		}
+		if r.URL.Path != "/v1/reseller/payment/method/list" {
+			t.Errorf("Expected path /v1/reseller/payment/method/list, got %s", r.URL.Path)
+		}
+		if r.URL.Query().Get("enable") != "true" {
+			t.Errorf("Expected enable=true query param, got %s", r.URL.Query().Get("enable"))
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{
+			"code": 200,
+			"msg": "success",
+			"data": {
+				"total": 2,
+				"list": [
+					{"id": 1, "name": "Card", "platform": "CardToCard", "enable": true},
+					{"id": 2, "name": "Tron", "platform": "Tronado", "enable": true}
+				]
+			}
+		}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "test_key", nil, false)
+	methods, err := client.GetPaymentMethods(context.Background())
+	if err != nil {
+		t.Fatalf("GetPaymentMethods failed: %v", err)
+	}
+	if len(methods) != 2 {
+		t.Fatalf("Expected 2 methods, got %d", len(methods))
+	}
+	if methods[0].Platform != "CardToCard" || methods[1].Platform != "Tronado" {
+		t.Errorf("Unexpected methods: %+v", methods)
+	}
+}
+
+func TestCreateCustomerCheckout(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			t.Errorf("Expected POST method, got %s", r.Method)
+		}
+		if r.URL.Path != "/v1/reseller/payment/checkout" {
+			t.Errorf("Expected path /v1/reseller/payment/checkout, got %s", r.URL.Path)
+		}
+
+		var req CustomerCheckoutRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Fatal("Failed to decode request body")
+		}
+		if req.UserID != 42 || req.PaymentID != 99 || req.Amount != 50000 {
+			t.Errorf("Unexpected request payload: %+v", req)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{
+			"code": 200,
+			"msg": "success",
+			"data": {
+				"order_no": "ORD123456",
+				"checkout_url": "https://gateway.example.com/pay/123",
+				"platform": "Tronado"
+			}
+		}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "test_key", nil, false)
+	resp, err := client.CreateCustomerCheckout(context.Background(), &CustomerCheckoutRequest{
+		UserID:    42,
+		PaymentID: 99,
+		Amount:    50000,
+	})
+	if err != nil {
+		t.Fatalf("CreateCustomerCheckout failed: %v", err)
+	}
+	if resp.OrderNo != "ORD123456" || resp.CheckoutURL != "https://gateway.example.com/pay/123" || resp.Platform != "Tronado" {
+		t.Errorf("Unexpected response: %+v", resp)
+	}
+}
+

@@ -58,6 +58,70 @@ func (b *Bot) handleCallbackQuery(cb *tgbotapi.CallbackQuery) {
 		return
 	}
 
+	if strings.HasPrefix(data, "topup_c2c_") {
+		b.answerCallback(cb.ID, "", false)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		card, err := b.client.GetPaymentCard(ctx, b.cfg.BotID)
+		if err != nil || card == nil || !card.Enabled || strings.TrimSpace(card.CardNumber) == "" {
+			b.sendSimpleMessage(chatID, Tr(getLang(cb.From), "payments_unavailable"))
+			return
+		}
+
+		text := fmt.Sprintf(MsgTopUpCardInfo, card.CardNumber, card.CardOwner)
+		reply := tgbotapi.NewMessage(chatID, text)
+		reply.ParseMode = tgbotapi.ModeMarkdown
+		reply.ReplyMarkup = BackKeyboard()
+		b.api.Send(reply)
+		b.session.SetState(chatID, StateAwaitingAmount)
+		return
+	}
+
+	if strings.HasPrefix(data, "topup_gw_") {
+		b.answerCallback(cb.ID, "", false)
+		idStr := strings.TrimPrefix(data, "topup_gw_")
+		paymentID, err := strconv.ParseInt(idStr, 10, 64)
+		if err != nil {
+			b.sendSimpleMessage(chatID, MsgGeneralError)
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		methods, err := b.client.GetPaymentMethods(ctx)
+		var targetMethod *backend.PaymentMethodItem
+		if err == nil {
+			for _, m := range methods {
+				if m.ID == paymentID && m.Enable {
+					targetMethod = &m
+					break
+				}
+			}
+		}
+
+		if targetMethod == nil {
+			b.sendSimpleMessage(chatID, Tr(getLang(cb.From), "payments_unavailable"))
+			return
+		}
+
+		name := targetMethod.Name
+		if name == "" {
+			name = targetMethod.Platform
+		}
+
+		b.session.SetSelectedPayment(chatID, targetMethod.ID, name, targetMethod.Platform)
+		b.session.SetState(chatID, StateAwaitingGatewayAmount)
+
+		text := fmt.Sprintf("💳 پرداخت آنلاین از طریق *%s*\n\nلطفاً مبلغ مورد نظر برای افزایش موجودی را به تومان وارد کنید:\n(مثلاً: 50000)", name)
+		reply := tgbotapi.NewMessage(chatID, text)
+		reply.ParseMode = tgbotapi.ModeMarkdown
+		reply.ReplyMarkup = BackKeyboard()
+		b.api.Send(reply)
+		return
+	}
+
 	if strings.HasPrefix(data, "sub_detail_") {
 		parts := strings.Split(data, "_") // sub_detail_<id> or sub_detail_<id>_<page>
 		if len(parts) < 3 {

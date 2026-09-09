@@ -321,6 +321,30 @@ func (c *Client) UpsertPaymentCard(ctx context.Context, card *PaymentCard) error
 	return c.do(httpReq, nil)
 }
 
+func (c *Client) GetPaymentMethods(ctx context.Context) ([]PaymentMethodItem, error) {
+	httpReq, err := c.newRequest(ctx, "GET", "/v1/reseller/payment/method/list?page=1&size=100&enable=true", nil)
+	if err != nil {
+		return nil, err
+	}
+	var resp PaymentMethodListResponse
+	if err := c.do(httpReq, &resp); err != nil {
+		return nil, err
+	}
+	return resp.List, nil
+}
+
+func (c *Client) CreateCustomerCheckout(ctx context.Context, req *CustomerCheckoutRequest) (*CustomerCheckoutResponse, error) {
+	httpReq, err := c.newRequest(ctx, "POST", "/v1/reseller/payment/checkout", req)
+	if err != nil {
+		return nil, err
+	}
+	var resp CustomerCheckoutResponse
+	if err := c.do(httpReq, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
 func (c *Client) CreateRecharge(ctx context.Context, req *CreateRechargeRequest) (*RechargeOrder, error) {
 	if req.BotID == 0 && c.botID > 0 {
 		req.BotID = c.botID

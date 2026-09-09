@@ -175,18 +175,69 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		card, err := b.client.GetPaymentCard(ctx, b.cfg.BotID)
-		if err != nil || card == nil || !card.Enabled || strings.TrimSpace(card.CardNumber) == "" {
-			b.sendSimpleMessage(chatID, Tr(getLang(msg.From), "payments_unavailable"))
+		methods, err := b.client.GetPaymentMethods(ctx)
+		var enabledMethods []backend.PaymentMethodItem
+		if err == nil {
+			for _, m := range methods {
+				if m.Enable {
+					enabledMethods = append(enabledMethods, m)
+				}
+			}
+		}
+
+		if len(enabledMethods) == 0 {
+			// Fallback to legacy GetPaymentCard
+			card, err := b.client.GetPaymentCard(ctx, b.cfg.BotID)
+			if err != nil || card == nil || !card.Enabled || strings.TrimSpace(card.CardNumber) == "" {
+				b.sendSimpleMessage(chatID, Tr(getLang(msg.From), "payments_unavailable"))
+				return
+			}
+
+			text := fmt.Sprintf(MsgTopUpCardInfo, card.CardNumber, card.CardOwner)
+			reply := tgbotapi.NewMessage(chatID, text)
+			reply.ParseMode = tgbotapi.ModeMarkdown
+			reply.ReplyMarkup = BackKeyboard()
+			b.api.Send(reply)
+			b.session.SetState(chatID, StateAwaitingAmount)
 			return
 		}
 
-		text := fmt.Sprintf(MsgTopUpCardInfo, card.CardNumber, card.CardOwner)
+		if len(enabledMethods) == 1 {
+			m := enabledMethods[0]
+			if m.Platform == "CardToCard" {
+				card, err := b.client.GetPaymentCard(ctx, b.cfg.BotID)
+				if err == nil && card != nil && card.Enabled && strings.TrimSpace(card.CardNumber) != "" {
+					text := fmt.Sprintf(MsgTopUpCardInfo, card.CardNumber, card.CardOwner)
+					reply := tgbotapi.NewMessage(chatID, text)
+					reply.ParseMode = tgbotapi.ModeMarkdown
+					reply.ReplyMarkup = BackKeyboard()
+					b.api.Send(reply)
+					b.session.SetState(chatID, StateAwaitingAmount)
+					return
+				}
+			} else {
+				// Single online gateway
+				name := m.Name
+				if name == "" {
+					name = m.Platform
+				}
+				b.session.SetSelectedPayment(chatID, m.ID, name, m.Platform)
+				b.session.SetState(chatID, StateAwaitingGatewayAmount)
+
+				text := fmt.Sprintf("💳 پرداخت آنلاین از طریق *%s*\n\nلطفاً مبلغ مورد نظر برای افزایش موجودی را به تومان وارد کنید:\n(مثلاً: 50000)", name)
+				reply := tgbotapi.NewMessage(chatID, text)
+				reply.ParseMode = tgbotapi.ModeMarkdown
+				reply.ReplyMarkup = BackKeyboard()
+				b.api.Send(reply)
+				return
+			}
+		}
+
+		// Multiple methods available: prompt with inline keyboard
+		text := "💳 لطفاً روش پرداخت مورد نظر خود را انتخاب کنید:"
 		reply := tgbotapi.NewMessage(chatID, text)
-		reply.ParseMode = tgbotapi.ModeMarkdown
-		reply.ReplyMarkup = BackKeyboard()
+		reply.ReplyMarkup = PaymentMethodSelectionKeyboard(enabledMethods)
 		b.api.Send(reply)
-		b.session.SetState(chatID, StateAwaitingAmount)
 
 	case BtnContactSupport:
 		supportText, _ := b.db.GetSetting("support_text")
@@ -613,6 +664,50 @@ func (b *Bot) handleStateMessage(msg *tgbotapi.Message, u *db.User, sess *Sessio
 		text := BuildSubscriptionDetailText(b.db, targetItem, subLink, getLang(msg.From))
 
 		b.sendSubscriptionMessage(chatID, text, subLink, SubscriptionDetailKeyboard(targetItem.ID, ps.HasOpenVPN, ps.HasWireGuard, 1))
+
+	case StateAwaitingGatewayAmount:
+		amountStr := strings.TrimSpace(msg.Text)
+		amount, err := strconv.ParseInt(amountStr, 10, 64)
+		if err != nil || amount <= 0 {
+			b.sendSimpleMessage(chatID, MsgInvalidAmount)
+			return
+		}
+
+		const maxTopupIRT int64 = 25000000 // Default 25 Million IRT / Toman
+		if amount > maxTopupIRT {
+			b.sendSimpleMessage(chatID, fmt.Sprintf("⚠️ مبلغ وارد شده بیشتر از حداکثر سقف مجاز افزایش موجودی (%s تومان) است. لطفاً مبلغ کمتری وارد کنید.", FormatMoney(maxTopupIRT)))
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+
+		checkoutResp, err := b.client.CreateCustomerCheckout(ctx, &backend.CustomerCheckoutRequest{
+			UserID:    u.UserID,
+			PaymentID: sess.SelectedPaymentID,
+			Amount:    amount,
+		})
+		if err != nil {
+			log.Printf("Failed to create customer checkout: %v", err)
+			b.sendSimpleMessage(chatID, MsgGeneralError)
+			b.session.Clear(chatID)
+			return
+		}
+
+		b.session.Clear(chatID)
+
+		text := fmt.Sprintf("✅ *درخواست شارژ حساب ایجاد شد*\n\n💰 مبلغ: *%s تومان*\n💳 روش پرداخت: *%s*\n🧾 شماره سفارش: `%s`\n\nبرای پرداخت، روی دکمه زیر کلیک کنید:\nپس از تکمیل پرداخت، موجودی حساب شما به طور خودکار افزایش خواهد یافت.",
+			FormatMoney(amount), sess.SelectedPaymentName, checkoutResp.OrderNo)
+
+		keyboard := tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonURL("🔗 ورود به درگاه پرداخت", checkoutResp.CheckoutURL),
+			),
+		)
+		reply := tgbotapi.NewMessage(chatID, text)
+		reply.ParseMode = tgbotapi.ModeMarkdown
+		reply.ReplyMarkup = keyboard
+		b.api.Send(reply)
 
 	case StateAwaitingAmount:
 		amountStr := strings.TrimSpace(msg.Text)

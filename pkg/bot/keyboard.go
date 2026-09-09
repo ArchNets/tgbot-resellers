@@ -382,3 +382,49 @@ func AdminTagsInlineKeyboard(tags []TagItem) tgbotapi.InlineKeyboardMarkup {
 		InlineKeyboard: rows,
 	}
 }
+
+func PaymentMethodSelectionKeyboard(methods []backend.PaymentMethodItem) tgbotapi.InlineKeyboardMarkup {
+	var rows [][]tgbotapi.InlineKeyboardButton
+	for _, m := range methods {
+		if !m.Enable {
+			continue
+		}
+		var icon string
+		switch m.Platform {
+		case "CardToCard":
+			icon = "💳 "
+		case "Tronado":
+			icon = "⚡ "
+		case "NOWPayments":
+			icon = "🪙 "
+		case "Stripe":
+			icon = "🌐 "
+		case "Heleket":
+			icon = "💠 "
+		case "PayPing":
+			icon = "🔹 "
+		case "EPay":
+			icon = "💰 "
+		default:
+			icon = "💵 "
+		}
+		name := m.Name
+		if name == "" {
+			name = m.Platform
+		}
+		btnText := fmt.Sprintf("%s%s", icon, name)
+		var cbData string
+		if m.Platform == "CardToCard" {
+			cbData = fmt.Sprintf("topup_c2c_%d", m.ID)
+		} else {
+			cbData = fmt.Sprintf("topup_gw_%d", m.ID)
+		}
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(btnText, cbData),
+		))
+	}
+	return tgbotapi.InlineKeyboardMarkup{
+		InlineKeyboard: rows,
+	}
+}
+
