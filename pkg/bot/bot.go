@@ -248,22 +248,22 @@ type ProtocolSupport struct {
 func analyzeDownloadNodes(nodes []backend.DownloadNode) ProtocolSupport {
 	var ps ProtocolSupport
 	for _, n := range nodes {
-		proto := strings.ToLower(n.Protocol)
+		proto := strings.ToLower(strings.TrimSpace(n.Protocol))
 		var isOvpn, isWg bool
 
-		if proto == "openvpn" {
+		if strings.Contains(proto, "openvpn") || proto == "ovpn" || proto == "ov" {
 			isOvpn = true
 		}
-		if proto == "wireguard" || proto == "awg" {
+		if strings.Contains(proto, "wireguard") || strings.Contains(proto, "amnezia") || proto == "awg" || proto == "wg" {
 			isWg = true
 		}
 
 		for _, f := range n.Formats {
-			fl := strings.ToLower(f)
-			if fl == "openvpn" {
+			fl := strings.ToLower(strings.TrimSpace(f))
+			if strings.Contains(fl, "openvpn") || fl == "ovpn" || fl == "ov" {
 				isOvpn = true
 			}
-			if fl == "wireguard" || fl == "awg" {
+			if strings.Contains(fl, "wireguard") || strings.Contains(fl, "amnezia") || fl == "awg" || fl == "wg" || fl == "conf" {
 				isWg = true
 			}
 		}

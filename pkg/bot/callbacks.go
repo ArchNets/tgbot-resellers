@@ -745,16 +745,48 @@ func (b *Bot) updateMessageTextOrCaption(chatID int64, messageID int, text strin
 }
 
 func calculateExpiryMs(unitTime string) int64 {
+	trimmed := strings.ToLower(strings.TrimSpace(unitTime))
+	if trimmed == "" || trimmed == "one_time" || trimmed == "onetime" || trimmed == "nolimit" {
+		return 0
+	}
 	now := time.Now()
-	switch strings.ToLower(strings.TrimSpace(unitTime)) {
+	var count int = 1
+	unit := trimmed
+	parts := strings.FieldsFunc(trimmed, func(r rune) bool {
+		return r == '_' || r == '-' || r == ' '
+	})
+	if len(parts) >= 2 {
+		if c, err := strconv.Atoi(parts[0]); err == nil && c > 0 {
+			count = c
+			unit = parts[1]
+		} else if c, err := strconv.Atoi(parts[1]); err == nil && c > 0 {
+			count = c
+			unit = parts[0]
+		}
+	} else if len(parts) == 1 {
+		numEnd := 0
+		for numEnd < len(parts[0]) && parts[0][numEnd] >= '0' && parts[0][numEnd] <= '9' {
+			numEnd++
+		}
+		if numEnd > 0 && numEnd < len(parts[0]) {
+			if c, err := strconv.Atoi(parts[0][:numEnd]); err == nil && c > 0 {
+				count = c
+				unit = parts[0][numEnd:]
+			}
+		}
+	}
+
+	switch unit {
+	case "day":
+		return now.AddDate(0, 0, count).UnixMilli()
 	case "month":
-		return now.AddDate(0, 1, 0).UnixMilli()
+		return now.AddDate(0, count, 0).UnixMilli()
 	case "quarter":
-		return now.AddDate(0, 3, 0).UnixMilli()
+		return now.AddDate(0, count*3, 0).UnixMilli()
 	case "half_year":
-		return now.AddDate(0, 6, 0).UnixMilli()
+		return now.AddDate(0, count*6, 0).UnixMilli()
 	case "year":
-		return now.AddDate(1, 0, 0).UnixMilli()
+		return now.AddDate(count, 0, 0).UnixMilli()
 	default:
 		return 0
 	}

@@ -70,7 +70,7 @@ func NewClient(baseURL, apiKey string, hostMappings map[string]string, insecureS
 		baseURL: baseURL,
 		apiKey:  apiKey,
 		httpClient: &http.Client{
-			Timeout:   15 * time.Second,
+			Timeout:   60 * time.Second,
 			Transport: transport,
 		},
 	}

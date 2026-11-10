@@ -92,6 +92,29 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 		b.session.Clear(chatID)
 		args := strings.TrimSpace(msg.CommandArguments())
 
+		// Ensure user is synced with backend bot-scoped user ID on /start
+		if msgText == "/start" {
+			syncCtx, syncCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			syncResp, syncErr := b.client.RegisterUser(syncCtx, &backend.UserRegisterRequest{
+				TelegramID:   chatID,
+				FirstName:    msg.From.FirstName,
+				LastName:     msg.From.LastName,
+				Username:     msg.From.UserName,
+				LanguageCode: msg.From.LanguageCode,
+			})
+			syncCancel()
+			if syncErr == nil && syncResp != nil && syncResp.UserID > 0 {
+				if u == nil || u.UserID != syncResp.UserID {
+					u = &db.User{
+						TelegramID: chatID,
+						UserID:     syncResp.UserID,
+						CreatedAt:  time.Now().Unix(),
+					}
+					_ = b.db.SaveUser(u)
+				}
+			}
+		}
+
 		// Handle pair/login code authentication: /start login_123456
 		if strings.HasPrefix(args, "login_") || strings.HasPrefix(args, "pair_") {
 			codeDigits := strings.TrimPrefix(strings.TrimPrefix(args, "login_"), "pair_")
@@ -755,7 +778,7 @@ func (b *Bot) handleStateMessage(msg *tgbotapi.Message, u *db.User, sess *Sessio
 			return
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
 
 		order, err := b.client.CreateRecharge(ctx, &backend.CreateRechargeRequest{

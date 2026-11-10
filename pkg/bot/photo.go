@@ -10,6 +10,8 @@ import (
 	_ "image/png"
 	"io"
 	"net/http"
+
+	_ "golang.org/x/image/webp"
 )
 
 func (b *Bot) processReceiptPhoto(fileID string) (string, error) {
@@ -35,7 +37,7 @@ func (b *Bot) processReceiptPhoto(fileID string) (string, error) {
 
 	img, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
-		if len(data) < 1500000 {
+		if len(data) < 1000000 {
 			return base64.StdEncoding.EncodeToString(data), nil
 		}
 		return "", fmt.Errorf("failed to decode photo image: %w", err)
@@ -45,7 +47,7 @@ func (b *Bot) processReceiptPhoto(fileID string) (string, error) {
 	width := bounds.Dx()
 	height := bounds.Dy()
 
-	maxDim := 1280
+	maxDim := 960
 	var outImg image.Image = img
 
 	if width > maxDim || height > maxDim {
@@ -70,7 +72,7 @@ func (b *Bot) processReceiptPhoto(fileID string) (string, error) {
 	}
 
 	var buf bytes.Buffer
-	opts := &jpeg.Options{Quality: 80}
+	opts := &jpeg.Options{Quality: 72}
 	if err := jpeg.Encode(&buf, outImg, opts); err != nil {
 		return "", fmt.Errorf("failed to encode jpeg: %w", err)
 	}
