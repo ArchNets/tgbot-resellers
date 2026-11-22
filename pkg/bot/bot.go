@@ -89,11 +89,11 @@ func (b *Bot) startPoller(ctx context.Context) {
 			return
 		case <-ticker.C:
 			b.syncRechargeStatus(ctx)
+			b.syncBotConfigFromServer(ctx)
 
-			// Sync admin IDs and bot config from server every 5 minutes
+			// Sync admin IDs from server every 5 minutes
 			if time.Since(lastAdminSync) >= 5*time.Minute {
 				b.syncAdminIDsFromServer(ctx)
-				b.syncBotConfigFromServer(ctx)
 				lastAdminSync = time.Now()
 			}
 
@@ -512,22 +512,12 @@ func (b *Bot) syncBotConfigFromServer(ctx context.Context) {
 		return
 	}
 
-	// 1. Text and media settings
-	if cfg.WelcomeText != "" {
-		_ = b.db.SetSetting("welcome_text", cfg.WelcomeText)
-	}
-	if cfg.WelcomeImage != "" {
-		_ = b.db.SetSetting("welcome_image", cfg.WelcomeImage)
-	}
-	if cfg.SupportText != "" {
-		_ = b.db.SetSetting("support_text", cfg.SupportText)
-	}
-	if cfg.SupportImage != "" {
-		_ = b.db.SetSetting("support_image", cfg.SupportImage)
-	}
-	if cfg.RequiredChannel != "" {
-		_ = b.db.SetSetting("required_channel", cfg.RequiredChannel)
-	}
+	// 1. Text and media settings (sync clears too so resets from web panel propagate)
+	_ = b.db.SetSetting("welcome_text", cfg.WelcomeText)
+	_ = b.db.SetSetting("welcome_image", cfg.WelcomeImage)
+	_ = b.db.SetSetting("support_text", cfg.SupportText)
+	_ = b.db.SetSetting("support_image", cfg.SupportImage)
+	_ = b.db.SetSetting("required_channel", cfg.RequiredChannel)
 	if cfg.QREnabled {
 		_ = b.db.SetSetting("qr_enabled", "on")
 	} else {

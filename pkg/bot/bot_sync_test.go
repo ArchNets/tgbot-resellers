@@ -220,3 +220,17 @@ func TestBot_PushBotConfigToBackend(t *testing.T) {
 		t.Errorf("Unexpected payload received: %+v", receivedBody)
 	}
 }
+
+func TestFormatWelcomeMessage(t *testing.T) {
+	// Default fallback when empty
+	def := formatWelcomeMessage("", "Ali_Dev")
+	if def == "" || def == "{name}" {
+		t.Fatalf("expected non-empty default welcome message")
+	}
+
+	// Custom welcome message preserves special characters like @channel_name and replaces {name}
+	custom := formatWelcomeMessage("سلام {name} عزیز!\nکانال ما: @my_vpn_channel", "Reza_99")
+	if custom != "سلام Reza\\_99 عزیز!\nکانال ما: @my_vpn_channel" {
+		t.Fatalf("unexpected formatted welcome message: %q", custom)
+	}
+}

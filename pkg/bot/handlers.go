@@ -16,6 +16,34 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
+func (b *Bot) sendChattableWithMarkdownFallback(chatID int64, msg tgbotapi.MessageConfig) {
+	if _, err := b.api.Send(msg); err != nil {
+		log.Printf("[Telegram] Markdown send failed for chat %d (%v), retrying as plain text", chatID, err)
+		msg.ParseMode = ""
+		if _, retryErr := b.api.Send(msg); retryErr != nil {
+			log.Printf("[Telegram] Plain text send fallback failed for chat %d: %v", chatID, retryErr)
+		}
+	}
+}
+
+func (b *Bot) sendPhotoWithMarkdownFallback(chatID int64, photo tgbotapi.PhotoConfig) {
+	if _, err := b.api.Send(photo); err != nil {
+		log.Printf("[Telegram] Markdown photo send failed for chat %d (%v), retrying as plain text", chatID, err)
+		photo.ParseMode = ""
+		if _, retryErr := b.api.Send(photo); retryErr != nil {
+			log.Printf("[Telegram] Plain text photo send fallback failed for chat %d: %v", chatID, retryErr)
+		}
+	}
+}
+
+func formatWelcomeMessage(templateText, userName string) string {
+	text := strings.TrimSpace(templateText)
+	if text == "" {
+		text = MsgWelcome
+	}
+	return strings.ReplaceAll(text, "{name}", escapeMarkdown(userName))
+}
+
 func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 	chatID := msg.Chat.ID
 	log.Printf("Received message from %d: %s", chatID, msg.Text)
@@ -139,10 +167,7 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 		}
 
 		welcomeText, _ := b.db.GetSetting("welcome_text")
-		if welcomeText == "" {
-			welcomeText = MsgWelcome
-		}
-		welcomeText = strings.ReplaceAll(welcomeText, "{name}", escapeMarkdown(name))
+		welcomeText = formatWelcomeMessage(welcomeText, name)
 
 		welcomeImage, _ := b.db.GetSetting("welcome_image")
 		if welcomeImage != "" {
@@ -150,12 +175,12 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 			reply.Caption = welcomeText
 			reply.ParseMode = tgbotapi.ModeMarkdown
 			reply.ReplyMarkup = MainMenuKeyboard(isAdmin)
-			b.api.Send(reply)
+			b.sendPhotoWithMarkdownFallback(chatID, reply)
 		} else {
 			reply := tgbotapi.NewMessage(chatID, welcomeText)
 			reply.ParseMode = tgbotapi.ModeMarkdown
 			reply.ReplyMarkup = MainMenuKeyboard(isAdmin)
-			b.api.Send(reply)
+			b.sendChattableWithMarkdownFallback(chatID, reply)
 		}
 
 	case BtnAccountInfo:
@@ -273,12 +298,12 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 			reply.Caption = supportText
 			reply.ParseMode = tgbotapi.ModeMarkdown
 			reply.ReplyMarkup = MainMenuKeyboard(isAdmin)
-			b.api.Send(reply)
+			b.sendPhotoWithMarkdownFallback(chatID, reply)
 		} else {
 			reply := tgbotapi.NewMessage(chatID, supportText)
 			reply.ParseMode = tgbotapi.ModeMarkdown
 			reply.ReplyMarkup = MainMenuKeyboard(isAdmin)
-			b.api.Send(reply)
+			b.sendChattableWithMarkdownFallback(chatID, reply)
 		}
 
 	case BtnAdminPanel, "/admin":
@@ -1174,6 +1199,9 @@ func (b *Bot) handleStateMessage(msg *tgbotapi.Message, u *db.User, sess *Sessio
 			return
 		}
 		txt := strings.TrimSpace(msg.Text)
+		if txt == "" {
+			txt = strings.TrimSpace(msg.Caption)
+		}
 		if txt == "" {
 			b.sendSimpleMessage(chatID, "⚠️ متن پیام خوش‌آمدگویی نمی‌تواند خالی باشد. مجدداً وارد کنید:")
 			return
